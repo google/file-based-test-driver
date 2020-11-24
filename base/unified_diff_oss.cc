@@ -103,7 +103,7 @@ void Print(
       absl::StrAppend(out, line);
     }
 
-    if (i == lines.size() - 1) {
+    if (i == static_cast<int>(lines.size() - 1)) {
       if (line[line.size() - 1] != '\n') {
         if (options.warn_missing_eof_newline()) {
           absl::StrAppend(out, "\n", kNoNewlineAtEof, "\n");

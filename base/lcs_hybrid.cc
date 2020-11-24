@@ -53,7 +53,7 @@ void LcsStats::DiffBounds(int* lower_bound, int* upper_bound) const {
   // Just transform the length of longest common subsequence to the difference.
   *upper_bound = left_size_ + right_size_ - lcs_lower * 2;
   *lower_bound = left_size_ + right_size_ - lcs_upper * 2;
-  CHECK_LE(*lower_bound, *upper_bound);
+  FILE_BASED_TEST_DRIVER_CHECK_LE(*lower_bound, *upper_bound);
 }
 
 static float sqr(float a) {

@@ -144,16 +144,16 @@ class RegisteredTempFile {
     std::string filename_str;
     struct stat file_stat;
     if (!NullFreeString(filename_, &filename_str).ok()) {
-      LOG(FATAL)
+      FILE_BASED_TEST_DRIVER_LOG(FATAL)
           << "RegisteredTempFile: Illegal filename contains null characters: "
           << filename_;
     }
     if (stat(filename_str.c_str(), &file_stat) != 0) {
-      // LOG(FATAL) << "RegisteredTempFile: File already exists: " <<
+      // FILE_BASED_TEST_DRIVER_LOG(FATAL) << "RegisteredTempFile: File already exists: " <<
       // filename_str;
     }
     if (absl::Status s = SetContents(filename_str, contents); !s.ok()) {
-      LOG(FATAL) << "RegisteredTempFile: Unable to set contents: " << s;
+      FILE_BASED_TEST_DRIVER_LOG(FATAL) << "RegisteredTempFile: Unable to set contents: " << s;
     }
     should_delete_ = true;
   }

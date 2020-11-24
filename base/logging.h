@@ -62,56 +62,58 @@
 
 // Creates a message and logs it to file.
 //
-// LOG(severity) returns a stream object that can be written to with the <<
+// FILE_BASED_TEST_DRIVER_LOG(severity) returns a stream object that can be written to with the <<
 // operator. Log messages are emitted with terminating newlines.
 // Example:
-//   LOG(INFO) << "Found" << num_cookies << " cookies";
+//   FILE_BASED_TEST_DRIVER_LOG(INFO) << "Found" << num_cookies << " cookies";
 //
 // severity: the severity of the log message, one of LogSeverity. The
 //           FATAL severity will terminate the program after the log is emitted.
 //           Must be exactly one of INFO WARNING ERROR FATAL QFATAL DFATAL
-#define LOG(severity) \
+#define FILE_BASED_TEST_DRIVER_LOG(severity) \
   FILE_BASED_TEST_DRIVER_INTERNAL_LOGGING_##severity.stream()
 
-// A command to LOG only if a condition is true. If the condition is false,
+// A command to FILE_BASED_TEST_DRIVER_LOG only if a condition is true. If the condition is false,
 // nothing is logged.
 // Example:
 //
-// LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
+// FILE_BASED_TEST_DRIVER_LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
 //
 // severity: the severity of the log message, one of LogSeverity. The
 //           FATAL severity will terminate the program after the log is emitted.
 // condition: the condition that determines whether to log the message.
-#define LOG_IF(severity, condition)                                            \
+#define FILE_BASED_TEST_DRIVER_LOG_IF(severity, condition)                     \
   !(condition)                                                                 \
       ? (void)0                                                                \
       : ::file_based_test_driver_base::logging_internal::LogMessageVoidify() & \
             FILE_BASED_TEST_DRIVER_INTERNAL_LOGGING_##severity.stream()
 
-// A LOG command with an associated verbosity level. The verbosity threshold
+// A FILE_BASED_TEST_DRIVER_LOG command with an associated verbosity level. The verbosity threshold
 // may be configured at runtime with set_vlog_level and InitLogging.
 //
-// VLOG statements are logged at INFO severity if they are logged at all.
+// FILE_BASED_TEST_DRIVER_VLOG statements are logged at INFO severity if they are logged at all.
 // The numeric levels are on a different scale than the severity levels.
 // Example:
 //
-//   VLOG(1) << "Print when VLOG level is set to be 1 or higher";
+//   FILE_BASED_TEST_DRIVER_VLOG(1) << "Print when FILE_BASED_TEST_DRIVER_VLOG level is set to be 1 or higher";
 //
 // level: the numeric level that determines whether to log the message.
-#define VLOG(level) \
-  LOG_IF(INFO, (level) <= ::file_based_test_driver_base::get_vlog_level())
+#define FILE_BASED_TEST_DRIVER_VLOG(level) \
+  FILE_BASED_TEST_DRIVER_LOG_IF(           \
+      INFO, (level) <= ::file_based_test_driver_base::get_vlog_level())
 
 // Terminates the program with a fatal error if the specified condition is
 // false.
 //
 // Example:
-//   CHECK(!cheese.empty()) << "Out of Cheese";
+//   FILE_BASED_TEST_DRIVER_CHECK(!cheese.empty()) << "Out of Cheese";
 //
 //
 // Might produce a message like:
 //   "Check_failed: !cheese.empty() Out of Cheese"
-#define CHECK(condition) \
-  LOG_IF(FATAL, !(condition)) << ("Check failed: " #condition " ")
+#define FILE_BASED_TEST_DRIVER_CHECK(condition)      \
+  FILE_BASED_TEST_DRIVER_LOG_IF(FATAL, !(condition)) \
+      << ("Check failed: " #condition " ")
 
 namespace file_based_test_driver_base {
 
@@ -201,7 +203,7 @@ DEFINE_CHECK_OP_IMPL(Check_GT, >)
 
 // Function is overloaded for integral types to allow static const
 // integrals declared in classes and not defined to be used as arguments to
-// CHECK* macros. It's not encouraged though.
+// FILE_BASED_TEST_DRIVER_CHECK* macros. It's not encouraged though.
 template <typename T>
 inline const T &GetReferenceableValue(const T &t) {
   return t;
@@ -228,7 +230,7 @@ inline unsigned long long GetReferenceableValue(unsigned long long t) {
   return t;
 }
 
-// Compares val1 and val2 with op, and produces a LOG(FATAL) if false.
+// Compares val1 and val2 with op, and produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) if false.
 //
 // name An identifier that is the name of the comparison, such as
 //        Check_EQ or Check_NE.
@@ -245,43 +247,43 @@ inline unsigned long long GetReferenceableValue(unsigned long long t) {
       __FILE__, __LINE__, *_result)                                           \
       .stream()
 
-// Produces a LOG(FATAL) unless val1 equals val2.
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 equals val2.
 #define FILE_BASED_TEST_DRIVER_CHECK_EQ(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_EQ, ==, val1, val2)
-// Produces a LOG(FATAL) unless val1 does not equal to val2.
-#define CHECK_NE(val1, val2) \
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 does not equal to val2.
+#define FILE_BASED_TEST_DRIVER_CHECK_NE(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_NE, !=, val1, val2)
-// Produces a LOG(FATAL) unless val1 is less than or equal to val2.
-#define CHECK_LE(val1, val2) \
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 is less than or equal to val2.
+#define FILE_BASED_TEST_DRIVER_CHECK_LE(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_LE, <=, val1, val2)
-// Produces a LOG(FATAL) unless val1 is less than val2.
-#define CHECK_LT(val1, val2) \
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 is less than val2.
+#define FILE_BASED_TEST_DRIVER_CHECK_LT(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_LT, <, val1, val2)
-// Produces a LOG(FATAL) unless val1 is greater than or equal to val2.
-#define CHECK_GE(val1, val2) \
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 is greater than or equal to val2.
+#define FILE_BASED_TEST_DRIVER_CHECK_GE(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_GE, >=, val1, val2)
-// Produces a LOG(FATAL) unless val1 is greater than val2.
-#define CHECK_GT(val1, val2) \
+// Produces a FILE_BASED_TEST_DRIVER_LOG(FATAL) unless val1 is greater than val2.
+#define FILE_BASED_TEST_DRIVER_CHECK_GT(val1, val2) \
   FILE_BASED_TEST_DRIVER_INTERNAL_CHECK_OP(Check_GT, >, val1, val2)
 
-#define DCHECK(c) CHECK(c)
-// Another alias for CHECK that in the future may include more posix/errno
-// related data.
-#define PCHECK(c) CHECK(c)
+#define FILE_BASED_TEST_DRIVER_DCHECK(c) FILE_BASED_TEST_DRIVER_CHECK(c)
 
-// Another alias for CHECK that in the future may log less verbosely.
-#define FILE_BASED_TEST_DRIVER_CHECK(c) CHECK(c)
+#define FILE_BASED_TEST_DRIVER_DCHECK_EQ(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_EQ(a, b)
+#define FILE_BASED_TEST_DRIVER_DCHECK_NE(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_NE(a, b)
+#define FILE_BASED_TEST_DRIVER_DCHECK_LE(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_LE(a, b)
+#define FILE_BASED_TEST_DRIVER_DCHECK_LT(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_LT(a, b)
+#define FILE_BASED_TEST_DRIVER_DCHECK_GE(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_GE(a, b)
+#define FILE_BASED_TEST_DRIVER_DCHECK_GT(a, b) \
+  FILE_BASED_TEST_DRIVER_CHECK_GT(a, b)
 
-#define DCHECK_EQ(a, b) FILE_BASED_TEST_DRIVER_CHECK_EQ(a, b)
-#define DCHECK_NE(a, b) CHECK_NE(a, b)
-#define DCHECK_LE(a, b) CHECK_LE(a, b)
-#define DCHECK_LT(a, b) CHECK_LT(a, b)
-#define DCHECK_GE(a, b) CHECK_GE(a, b)
-#define DCHECK_GT(a, b) CHECK_GT(a, b)
+#define FILE_BASED_TEST_DRIVER_DLOG(c) FILE_BASED_TEST_DRIVER_LOG(c)
 
-#define DLOG(c) LOG(c)
-
-// Gets the verbosity threshold for VLOG. A VLOG command with a level greater
+// Gets the verbosity threshold for FILE_BASED_TEST_DRIVER_VLOG. A FILE_BASED_TEST_DRIVER_VLOG command with a level greater
 // than this will be ignored.
 int get_vlog_level();
 
@@ -294,7 +296,7 @@ std::string get_log_directory();
 //
 // directory: log file directory.
 // file_name: name of the log file (recommend this be initialized with argv[0]).
-// level: verbosity threshold for VLOG commands. A VLOG command with
+// level: verbosity threshold for FILE_BASED_TEST_DRIVER_VLOG commands. A FILE_BASED_TEST_DRIVER_VLOG command with
 //        a level equal to or lower than it will be logged.
 // Returns true if initialized successfully. Behavior is undefined false.
 bool InitLogging(const char *directory, const char *file_name, int level);
@@ -350,7 +352,7 @@ class LogMessage {
 };
 
 // This class is used just to take an ostream type and make it a void type to
-// satisfy the ternary operator in LOG_IF.
+// satisfy the ternary operator in FILE_BASED_TEST_DRIVER_LOG_IF.
 // operator& is used because it has precedence lower than << but higher than :?
 class LogMessageVoidify {
  public:
@@ -368,7 +370,7 @@ class LogMessageFatal : public LogMessage {
   LogMessageFatal(const char *file, int line)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {}
 
-  // Constructs a message with FATAL severity for use by CHECK macros.
+  // Constructs a message with FATAL severity for use by FILE_BASED_TEST_DRIVER_CHECK macros.
   //
   // file: source file that produced the log.
   // line: source code line that produced the log.
@@ -378,7 +380,7 @@ class LogMessageFatal : public LogMessage {
 
   // Suppresses warnings in some cases, example:
   // if (impossible)
-  //   LOG(FATAL)
+  //   FILE_BASED_TEST_DRIVER_LOG(FATAL)
   // else
   //   return 0;
   // which would otherwise yield the following compiler warning.

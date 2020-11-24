@@ -194,7 +194,7 @@ class TestCaseOptions {
   // with [keyword] and [no_keyword], for true and false respectively.
   void RegisterBool(absl::string_view keyword, bool default_value) {
     const std::string keyword_lower = absl::AsciiStrToLower(keyword);
-    CHECK(options_by_lower_keyword_.try_emplace(
+    FILE_BASED_TEST_DRIVER_CHECK(options_by_lower_keyword_.try_emplace(
         keyword_lower, keyword_lower, default_value).second);
   }
 
@@ -202,7 +202,7 @@ class TestCaseOptions {
   // value may be set with [keyword=some string].
   void RegisterString(absl::string_view keyword, std::string default_value) {
     const std::string keyword_lower = absl::AsciiStrToLower(keyword);
-    CHECK(options_by_lower_keyword_.try_emplace(
+    FILE_BASED_TEST_DRIVER_CHECK(options_by_lower_keyword_.try_emplace(
         keyword_lower, keyword_lower, std::move(default_value)).second);
   }
 
@@ -210,7 +210,7 @@ class TestCaseOptions {
   // value may be set with [keyword=123456].
   void RegisterInt64(absl::string_view keyword, int64_t default_value) {
     const std::string keyword_lower = absl::AsciiStrToLower(keyword);
-    CHECK(options_by_lower_keyword_.try_emplace(
+    FILE_BASED_TEST_DRIVER_CHECK(options_by_lower_keyword_.try_emplace(
         keyword_lower, keyword_lower, default_value).second);
   }
 
@@ -219,7 +219,7 @@ class TestCaseOptions {
   void RegisterDuration(absl::string_view keyword,
                         absl::Duration default_value) {
     const std::string keyword_lower = absl::AsciiStrToLower(keyword);
-    CHECK(options_by_lower_keyword_
+    FILE_BASED_TEST_DRIVER_CHECK(options_by_lower_keyword_
               .try_emplace(keyword_lower, keyword_lower, default_value)
               .second);
   }
@@ -277,7 +277,7 @@ class TestCaseOptions {
   bool IsExplicitlySet(absl::string_view option_keyword) const {
     auto it = options_by_lower_keyword_.find(
         absl::AsciiStrToLower(option_keyword));
-    CHECK(it != options_by_lower_keyword_.end());
+    FILE_BASED_TEST_DRIVER_CHECK(it != options_by_lower_keyword_.end());
     return it->second.current_value.is_set_explicitly;
   }
 
@@ -288,7 +288,7 @@ class TestCaseOptions {
   bool DefaultWasParsed(absl::string_view option_keyword) const {
     auto it = options_by_lower_keyword_.find(
         absl::AsciiStrToLower(option_keyword));
-    CHECK(it != options_by_lower_keyword_.end());
+    FILE_BASED_TEST_DRIVER_CHECK(it != options_by_lower_keyword_.end());
     return it->second.default_was_parsed;
   }
 
@@ -318,7 +318,7 @@ class TestCaseOptions {
       TestCaseOption::Type type, absl::string_view option_keyword) const {
     const std::string keyword_lower = absl::AsciiStrToLower(option_keyword);
     auto it = options_by_lower_keyword_.find(keyword_lower);
-    CHECK(it != options_by_lower_keyword_.end());
+    FILE_BASED_TEST_DRIVER_CHECK(it != options_by_lower_keyword_.end());
     FILE_BASED_TEST_DRIVER_CHECK_EQ(it->second.type, type) << "Invalid keyword type requested";
     return &it->second.current_value;
   }

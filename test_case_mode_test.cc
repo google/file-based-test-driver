@@ -25,7 +25,6 @@
 #include "absl/status/status.h"
 #include "base/status_matchers.h"
 #include "base/status_macros.h"
-#include "base/statusor.h"
 
 namespace file_based_test_driver {
 

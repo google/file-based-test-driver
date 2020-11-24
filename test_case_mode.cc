@@ -29,7 +29,6 @@
 #include "absl/strings/strip.h"
 #include "re2/re2.h"
 #include "base/status_macros.h"
-#include "base/statusor.h"
 
 namespace file_based_test_driver {
 

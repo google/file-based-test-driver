@@ -162,7 +162,7 @@ TEST(Lcs, RunWithVectorAsVector) {
   FILE_BASED_TEST_DRIVER_CHECK_EQ(2, chunks.size());
   FILE_BASED_TEST_DRIVER_CHECK_EQ(5, len);
   for (Chunk& chunk : chunks) {
-    CHECK_NE(0, chunk.length);
+    FILE_BASED_TEST_DRIVER_CHECK_NE(0, chunk.length);
     for (int i = chunk.left; i < chunk.length; i++) {
       FILE_BASED_TEST_DRIVER_CHECK_EQ(right[chunk.right], left[chunk.left]);
     }
@@ -180,7 +180,7 @@ TEST(Lcs, RunWithVectorAsPointer) {
   FILE_BASED_TEST_DRIVER_CHECK_EQ(2, chunks.size());
   FILE_BASED_TEST_DRIVER_CHECK_EQ(5, len);
   for (Chunk& chunk : chunks) {
-    CHECK_NE(0, chunk.length);
+    FILE_BASED_TEST_DRIVER_CHECK_NE(0, chunk.length);
     for (int i = chunk.left; i < chunk.length; i++) {
       FILE_BASED_TEST_DRIVER_CHECK_EQ(right[chunk.right], left[chunk.left]);
     }

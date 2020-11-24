@@ -20,7 +20,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <libgen.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -47,7 +46,7 @@ ABSL_CONST_INIT std::string *log_file_directory = nullptr;
 // The log filename.
 ABSL_CONST_INIT std::string *log_basename = nullptr;
 
-// The VLOG level, only VLOG with level equal to or below this level is logged.
+// The FILE_BASED_TEST_DRIVER_VLOG level, only FILE_BASED_TEST_DRIVER_VLOG with level equal to or below this level is logged.
 ABSL_CONST_INIT int vlog_level = 0;
 
 const char *GetBasename(const char *file_path) {
@@ -107,10 +106,10 @@ bool set_log_directory(const std::string &log_directory) {
   return true;
 }
 
-// Sets the verbosity threshold for VLOG. A VLOG command with a level greater
+// Sets the verbosity threshold for FILE_BASED_TEST_DRIVER_VLOG. A FILE_BASED_TEST_DRIVER_VLOG command with a level greater
 // than this will be ignored.
 //
-// level: verbosity threshold for VLOG to be set. A VLOG command with
+// level: verbosity threshold for FILE_BASED_TEST_DRIVER_VLOG to be set. A FILE_BASED_TEST_DRIVER_VLOG command with
 //        level less than or equal to this will be logged.
 void set_vlog_level(int level) { vlog_level = level; }
 

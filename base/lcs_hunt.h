@@ -57,7 +57,8 @@ class KeyOccurrences {
   // Given a key, returns the positions where this key occurs in the item
   // sequence with which the KeyOccurrences instance has been initialized.
   void occurrences(int key, const int** begin, const int** end) const {
-    if (key + 1 < first_match_.size()) {  // Is the key within the key-range?
+    // Is the key within the key-range?
+    if (key + 1 < static_cast<int>(first_match_.size())) {
       *begin = occurrences_.data() + first_match_[key];
       *end   = occurrences_.data() + first_match_[key + 1];
     } else {

@@ -69,7 +69,7 @@ absl::Status TestCaseOptions::ParseTestCaseOptions(std::string* str,
   for (auto& options_element : options_by_lower_keyword_) {
     TestCaseOption& option = options_element.second;
     option.current_value = option.default_value;
-    DCHECK(!option.current_value.is_set_explicitly);
+    FILE_BASED_TEST_DRIVER_DCHECK(!option.current_value.is_set_explicitly);
   }
 
   // Finally, set the actual values from the actual (non-"default") options.

@@ -23,7 +23,6 @@
 #include "base/status_matchers.h"
 #include "test_case_mode.h"
 #include "base/status_macros.h"
-#include "base/statusor.h"
 
 using ::file_based_test_driver::testing::StatusIs;
 using ::testing::_;

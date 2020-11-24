@@ -30,7 +30,7 @@ absl::string_view DiffChunk::opcode() const { return DiffChunk::opcode(type); }
 
 absl::string_view DiffChunk::opcode(ChunkType type) {
   if (type > kMaxChunkType) {
-    LOG(WARNING) << "Invalid chunk type. Ignoring.";
+    FILE_BASED_TEST_DRIVER_LOG(WARNING) << "Invalid chunk type. Ignoring.";
     return kChunkOpCodesStrings[kMaxChunkType];
   }
   return kChunkOpCodesStrings[type];

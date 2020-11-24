@@ -11,8 +11,8 @@ uses `.test` files to specify sets of inputs and expected outputs. The format
 of these files is documented in `file_based_test_driver.h`.
 
 A detailed example that shows all features is in
-[`//third_party/file_based_test_driver/example.test`](example.test)
-and the associated test driver [`example_test.cc`](example_test.cc).
+[`example.test`](example.test) and the associated test driver
+[`example_test.cc`](example_test.cc).
 
 #### Test output with modes
 

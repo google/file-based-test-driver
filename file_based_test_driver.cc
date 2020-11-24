@@ -109,7 +109,7 @@ void ReadTestFile(absl::string_view filename, std::vector<std::string>* lines) {
   std::string file_data;
   auto status = GetContents(filename, &file_data);
   if (!status.ok()) {
-    LOG(FATAL) << "Unable to read: " << filename << ". Failure: " << status;
+    FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Unable to read: " << filename << ". Failure: " << status;
   }
   *lines = SplitTestFileData(file_data);
 }
@@ -123,7 +123,7 @@ void GetNextTestCase(const std::vector<std::string>& lines,
   std::string current_part;
   std::string current_comment_start;
   std::string current_comment_end;
-  for ( ; *line_number < lines.size(); ++*line_number) {
+  for (; *line_number < static_cast<int>(lines.size()); ++*line_number) {
     std::string line = lines[*line_number];
 
     // Save comments separately.
@@ -158,8 +158,9 @@ void GetNextTestCase(const std::vector<std::string>& lines,
     // All of the special cases have been checked, we have an actual test case
     // line.
     if (!current_comment_end.empty()) {
-      if (std::count(current_comment_end.begin(), current_comment_end.end(),
-                     '\n') == current_comment_end.size()) {
+      if (static_cast<size_t>(std::count(current_comment_end.begin(),
+                                         current_comment_end.end(), '\n')) ==
+          current_comment_end.size()) {
         // The current end comment is a series of empty lines. We've interpreted
         // them as end comment lines, but now that we see that there are still
         // test case lines, we retroactively interpret them as being part of the
@@ -167,7 +168,7 @@ void GetNextTestCase(const std::vector<std::string>& lines,
         absl::StrAppend(&current_part, current_comment_end);
         current_comment_end.clear();
       } else {
-        CHECK(current_comment_end.empty())
+        FILE_BASED_TEST_DRIVER_CHECK(current_comment_end.empty())
             << "Comment \"" << current_comment_end
             << "\" is contained within test part \"" << current_part << ".";
       }
@@ -191,12 +192,12 @@ static void ReplaceAtStartOfLine(const std::string& needle,
                                  const std::string& replacement,
                                  std::string* lines) {
   if (lines->empty()) return;
-  CHECK(absl::EndsWith(*lines, "\n"));
+  FILE_BASED_TEST_DRIVER_CHECK(absl::EndsWith(*lines, "\n"));
   std::vector<std::string> split_lines =
       absl::StrSplit(*lines, "\n", absl::AllowEmpty());
   // Disregard the last line, it's not a line, but it's there because 'lines'
   // ends with a newline.
-  for (int i = 0; i < split_lines.size() - 1; ++i) {
+  for (size_t i = 0; i < split_lines.size() - 1; ++i) {
     if (absl::StartsWith(split_lines[i], needle)) {
       split_lines[i].replace(0, needle.size(), replacement);
     }
@@ -208,7 +209,7 @@ std::string BuildTestFileEntry(
     const std::vector<std::string>& parts,
     const std::vector<TestCasePartComments>& comments) {
   std::string s;
-  for (int i = 0; i < parts.size(); ++i) {
+  for (size_t i = 0; i < parts.size(); ++i) {
     if (i != 0) absl::StrAppend(&s, "--\n");
     std::string part = parts[i];
     ReplaceAtStartOfLine("\\", "\\\\", &part);
@@ -231,7 +232,7 @@ std::string BuildTestFileEntry(
       absl::StrAppend(&s, part);
     }
   }
-  for (int i = parts.size(); i < comments.size(); ++i) {
+  for (size_t i = parts.size(); i < comments.size(); ++i) {
     absl::StrAppend(
         &s,
         comments[i].start_comment.empty() ? ""
@@ -271,12 +272,12 @@ static bool CompareAndAppendOutput(
   }
 
   if (expected_string_for_diff != expected_string) {
-    LOG(WARNING) << "Expected output is modified for diff because of "
+    FILE_BASED_TEST_DRIVER_LOG(WARNING) << "Expected output is modified for diff because of "
                  << "file_based_test_driver_ignore_regex flag";
   }
 
   if (output_string_for_diff != output_string) {
-    LOG(WARNING) << "Generated Output from test case is modified for diff "
+    FILE_BASED_TEST_DRIVER_LOG(WARNING) << "Generated Output from test case is modified for diff "
                  << "because of file_based_test_driver_ignore_regex flag";
   }
 
@@ -307,7 +308,7 @@ static bool CompareAndAppendOutput(
           << output_string
           << "******************* END TEST DIFF **********************\n\n";
     } else {
-      LOG(WARNING)
+      FILE_BASED_TEST_DRIVER_LOG(WARNING)
           << "\n\n******************* BEGIN TEST DIFF ********************"
           << "\nFailure in " << filename
           << ", line " << start_line_number + 1 << ":\n"
@@ -318,7 +319,7 @@ static bool CompareAndAppendOutput(
 
       // Separate log message to avoid truncation in the case of long
       // output.
-      LOG(WARNING)
+      FILE_BASED_TEST_DRIVER_LOG(WARNING)
           << "\n=================== DIFF ===============================\n"
           << diff
           << "******************* END TEST DIFF **********************\n\n";
@@ -374,7 +375,7 @@ absl::Status RunAlternations(
   result->set_ignore_test_output(true);
 
   typename AlternationSetType<RunTestCaseResultType>::Type alternation_set;
-  for (int alternation_idx = 0;
+  for (size_t alternation_idx = 0;
        alternation_idx < alternation_values_and_expanded_inputs.size();
        ++alternation_idx) {
     const std::string& test_alternation =
@@ -382,7 +383,7 @@ absl::Status RunAlternations(
     const std::string& test_case =
         alternation_values_and_expanded_inputs[alternation_idx].second;
     if (alternation_values_and_expanded_inputs.size() != 1) {
-      LOG(INFO) << "Running alternation " << test_alternation;
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running alternation " << test_alternation;
     }
     RunTestCaseResultType sub_test_result;
     // Pass file name, line number, and parts of the test along with
@@ -522,7 +523,7 @@ static void LogExtractableText(absl::string_view file_path,
       absl::StrAppend(&this_output, output_lines[0], "\n");
       output_lines.erase(output_lines.begin());
     }
-    LOG(INFO)
+    FILE_BASED_TEST_DRIVER_LOG(INFO)
         << "\n"
         << "****" << test_output_prefix << "_BEGIN**** "
         << (first_output_block ? "NEW_TEST_RUN " : "")
@@ -646,7 +647,7 @@ bool RunTestCasesFromOneFile(
   std::vector<std::string> lines;
   internal::ReadTestFile(filename, &lines);
 
-  LOG(INFO) << "Executing tests from file " << filename;
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Executing tests from file " << filename;
 
   // Keep track of section start time for emitting time based split
   // suggestions.
@@ -657,7 +658,7 @@ bool RunTestCasesFromOneFile(
   std::vector<internal::TestCasePartComments> comments;
   AllTestCasesOutput all_output;
 
-  while (line_number < lines.size()) {
+  while (line_number < static_cast<int>(lines.size())) {
     // Insert split suggestions if requested by flag.
     if (absl::GetFlag(
             FLAGS_file_based_test_driver_insert_split_suggestions_seconds) >
@@ -676,7 +677,7 @@ bool RunTestCasesFromOneFile(
 
     const int start_line_number = line_number;
     internal::GetNextTestCase(lines, &line_number, &parts, &comments);
-    CHECK(!parts.empty());
+    FILE_BASED_TEST_DRIVER_CHECK(!parts.empty());
 
     found_diffs |= RunOneTestCase(filename, start_line_number, &parts,
                                   &comments, run_test_case, &all_output);
@@ -697,7 +698,7 @@ bool RunTestCasesFromFiles(
   bool no_diffs = true;
   std::vector<std::string> test_files;
   FILE_BASED_TEST_DRIVER_CHECK_OK(internal::Match(filespec, &test_files)) << "Filespec " << filespec;
-  CHECK_GT(test_files.size(), 0) << "Filespec " << filespec;
+  FILE_BASED_TEST_DRIVER_CHECK_GT(test_files.size(), size_t{0}) << "Filespec " << filespec;
   for (const std::string& filename : test_files) {
     no_diffs &=
         RunTestCasesFromOneFile<RunTestCaseResultType, AllTestCasesOutput>(
@@ -721,7 +722,7 @@ static bool AddBlankLines(
     // We're not in the first test case, and the flag says we need to make
     // sure that every test case starts with a number of blank lines
     // before the test case's comments. Add them if they're not there.
-    CHECK(!comments->empty());  // The test case is always present.
+    FILE_BASED_TEST_DRIVER_CHECK(!comments->empty());  // The test case is always present.
     while (!absl::StartsWith(
         (*comments)[0].start_comment,
         std::string(
@@ -736,7 +737,7 @@ static bool AddBlankLines(
         ADD_FAILURE() << "Test without leading blank line in " << filename
                       << ", line " << start_line_number + 1;
       } else {
-        LOG(INFO) << "Test without leading blank line in " << filename
+        FILE_BASED_TEST_DRIVER_LOG(INFO) << "Test without leading blank line in " << filename
                   << ", line " << start_line_number + 1;
       }
       added_lines = true;
@@ -754,10 +755,10 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     std::vector<internal::TestCasePartComments>* comments,
     RunTestCallback<RunTestCaseResult> run_test_case,
     RunTestCaseOutput* all_output) {
-  CHECK(parts != nullptr);
-  CHECK(comments != nullptr);
-  CHECK(all_output != nullptr);
-  CHECK(!parts->empty());
+  FILE_BASED_TEST_DRIVER_CHECK(parts != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(comments != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(all_output != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(!parts->empty());
   // Run test.
   const std::string test_case_log =
       absl::StrCat("test case from ", filename, ", line ",
@@ -769,7 +770,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     // Skip empty test cases if there's no expected output.
     // If there is an expected output, then we'll try to run the test
     // with an empty input.
-    LOG(INFO) << "Skipping empty test case from " << filename << ", line "
+    FILE_BASED_TEST_DRIVER_LOG(INFO) << "Skipping empty test case from " << filename << ", line "
               << start_line_number + 1 << ".";
     output = *parts;
   } else {
@@ -789,7 +790,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     //
     // See also LogIgnoredTestFlag in file_based_test_driver_test.cc.
     if (absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Running " << test_case_log;
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running " << test_case_log;
     }
     // Otherwise, we delay the logging until we know if the test is ignored.
 
@@ -819,7 +820,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
   bool update_prev_output = true;
   if (ignore_test_output) {
     if (absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Ignoring test result";
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Ignoring test result";
     }
     output = *parts;
     if (parts->size() == 2 && (*parts)[1] == kSameAsPrevious) {
@@ -845,7 +846,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     }
 
     if (!absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Executed " << test_case_log;
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Executed " << test_case_log;
     }
   }
 
@@ -878,10 +879,10 @@ bool RunOneTestCase<RunTestCaseWithModesResult, RunTestCaseWithModesOutput>(
     std::vector<internal::TestCasePartComments>* comments,
     RunTestCallback<RunTestCaseWithModesResult> run_test_case,
     RunTestCaseWithModesOutput* all_output) {
-  CHECK(parts != nullptr);
-  CHECK(comments != nullptr);
-  CHECK(all_output != nullptr);
-  CHECK(!parts->empty());
+  FILE_BASED_TEST_DRIVER_CHECK(parts != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(comments != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(all_output != nullptr);
+  FILE_BASED_TEST_DRIVER_CHECK(!parts->empty());
 
   const std::string test_case_log =
       absl::StrCat("test case from ", filename, ", line ",
@@ -897,7 +898,7 @@ bool RunOneTestCase<RunTestCaseWithModesResult, RunTestCaseWithModesOutput>(
     // Skip empty test cases if there's no expected output.
     // If there is an expected output, then we'll try to run the test
     // with an empty input.
-    LOG(INFO) << "Skipping empty test case from " << filename << ", line "
+    FILE_BASED_TEST_DRIVER_LOG(INFO) << "Skipping empty test case from " << filename << ", line "
               << start_line_number + 1 << ".";
   } else {
     // What will be logged in the log file:
@@ -916,7 +917,7 @@ bool RunOneTestCase<RunTestCaseWithModesResult, RunTestCaseWithModesOutput>(
     //
     // See also LogIgnoredTestFlag in file_based_test_driver_test.cc.
     if (absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Running " << test_case_log;
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running " << test_case_log;
     }
     // Otherwise, we delay the logging until we know if the test is ignored.
 
@@ -950,7 +951,7 @@ bool RunOneTestCase<RunTestCaseWithModesResult, RunTestCaseWithModesOutput>(
   bool update_prev_output = true;
   if (ignore_test_output) {
     if (absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Ignoring test result";
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Ignoring test result";
     }
     merged_outputs = expected_outputs;
     if (parts->size() == 2 && (*parts)[1] == kSameAsPrevious) {
@@ -972,7 +973,7 @@ bool RunOneTestCase<RunTestCaseWithModesResult, RunTestCaseWithModesOutput>(
     }
 
     if (!absl::GetFlag(FLAGS_file_based_test_driver_log_ignored_test)) {
-      LOG(INFO) << "Executed " << test_case_log;
+      FILE_BASED_TEST_DRIVER_LOG(INFO) << "Executed " << test_case_log;
     }
   }
 
@@ -1054,7 +1055,7 @@ int64_t CountTestCasesInFiles(absl::string_view filespec) {
     std::vector<std::string> lines;
     file_based_test_driver::internal::ReadTestFile(file, &lines);
     int line_number = 0;
-    while (line_number < lines.size()) {
+    while (line_number < static_cast<int>(lines.size())) {
       using file_based_test_driver::internal::TestCasePartComments;
       std::vector<std::string> parts;
       std::vector<TestCasePartComments> comments;

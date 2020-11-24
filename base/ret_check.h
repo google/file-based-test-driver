@@ -19,7 +19,7 @@
 #define THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_RET_CHECK_H_
 
 // Macros for non-fatal assertions.  The `FILE_BASED_TEST_DRIVER_RET_CHECK`
-// family of macros mirrors the `CHECK` family from "base/logging.h", but
+// family of macros mirrors the `FILE_BASED_TEST_DRIVER_CHECK` family from "base/logging.h", but
 // instead of aborting the process on failure, these return a absl::Status with
 // code `absl::StatusCode::kInternal` from the current method.
 //

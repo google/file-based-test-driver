@@ -62,7 +62,6 @@ cc_library(
         "//base:map_util",
         "//base:ret_check",
         "//base:status",
-        "//base:statusor",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/status",
@@ -95,7 +94,6 @@ cc_test(
         ":test_case_mode",
         "//base:status",
         "//base:status_matchers",
-        "//base:statusor",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/status",
     ],
@@ -183,7 +181,6 @@ cc_test(
         ":test_case_outputs",
         "//base:status",
         "//base:status_matchers",
-        "//base:statusor",
         "@com_google_googletest//:gtest_main",
     ],
 )

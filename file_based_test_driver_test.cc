@@ -348,7 +348,7 @@ TEST(TestdataUtilTest, BreakIntoAlternations) {
 static void RunTestCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  LOG(INFO) << "Running test case " << test_case;
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   if (test_case == "line 1\n") {
     test_result->AddTestOutput("Line 2\n");
@@ -370,7 +370,7 @@ static void RunTestCallback(
     int sum = 0;
     for (int i = 1; i < numbers.size(); ++i) {
       int32_t v;
-      CHECK(absl::SimpleAtoi(numbers[i], &v));
+      FILE_BASED_TEST_DRIVER_CHECK(absl::SimpleAtoi(numbers[i], &v));
       sum += v;
     }
     test_result->AddTestOutput(absl::StrCat("sum ", sum, "\n"));
@@ -384,7 +384,7 @@ static void RunTestCallback(
 static void RunTestCallbackWithModes(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseWithModesResult* test_result) {
-  LOG(INFO) << "Running test case " << test_case;
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestCaseMode mode, TestCaseMode::Create("DEFAULT_MODE"));
   if (test_case == "line 1\n" || test_case == "line 1copy\n") {
@@ -411,7 +411,7 @@ static void RunTestCallbackWithModes(
     int sum = 0;
     for (int i = 1; i < numbers.size(); ++i) {
       int32_t v;
-      CHECK(absl::SimpleAtoi(numbers[i], &v));
+      FILE_BASED_TEST_DRIVER_CHECK(absl::SimpleAtoi(numbers[i], &v));
       sum += v;
     }
     FILE_BASED_TEST_DRIVER_EXPECT_OK(test_result->mutable_test_case_outputs()->RecordOutput(
@@ -663,7 +663,7 @@ Line 6
 static void RunRegexTestCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  LOG(INFO) << "Running test case " << test_case;
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   test_result->AddTestOutput("Result_rep 5\n");
 }
@@ -708,7 +708,7 @@ Result_rep 2
 static void EchoCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  LOG(INFO) << "Running test case " << test_case;
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   test_result->AddTestOutput(absl::StrCat("Test got input: ", test_case));
 }

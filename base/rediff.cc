@@ -68,10 +68,10 @@ static void WrapLCS2(const LcsOptions& options,
 
   std::vector<Chunk> chunks;
   int res = lcs.Run(left_int, right_int, &chunks);
-  LOG_IF(WARNING, res < 0)
+  FILE_BASED_TEST_DRIVER_LOG_IF(WARNING, res < 0)
       << "LCS returned with error code " << res << ".\n"
       << "Rediff will only consider leading/trailing matches";
-  for (int i = 0; i < chunks.size(); i++)
+  for (size_t i = 0; i < chunks.size(); i++)
     result->push_back(
         DiffMatch(chunks[i].left, chunks[i].right, chunks[i].length));
 }
@@ -125,7 +125,7 @@ static int CalculateScore(const char* data,
                           const int* score_matrix) {
   int score = score_matrix[0];
   for (int i = 0; i < length; ++i) {
-    char c = data[i];
+    unsigned char c = static_cast<unsigned char>(data[i]);
     score += score_matrix[c];
   }
   return score;
@@ -175,7 +175,7 @@ int ProcessedEntry::ProcessString(absl::string_view input,
   // We split into lines, and count characters per line.
   int begin_index = 0;  // index where this line began
   int line_no = 0;      // line number for each entry
-  for (int i = 0; i < input.size(); ++i) {
+  for (size_t i = 0; i < input.size(); ++i) {
     if (input[i] == '\n') {
       out->push_back(ProcessedEntry(input.data() + begin_index,
                                     i - begin_index + 1,
@@ -186,7 +186,7 @@ int ProcessedEntry::ProcessString(absl::string_view input,
     }
   }
   // Handle the last chunk, if there was no trailing \n
-  if (begin_index < input.size()) {
+  if (begin_index < static_cast<int>(input.size())) {
     out->push_back(ProcessedEntry(input.data() + begin_index,
                                   input.size() - begin_index,
                                   line_no,
@@ -199,7 +199,7 @@ int ProcessedEntry::ProcessString(absl::string_view input,
 int ProcessedEntry::ProcessVector(const std::vector<const char *>& input,
                                   std::list<ProcessedEntry>* out,
                                   const int* score_matrix) {
-  for (int i = 0; i < input.size(); ++i) {
+  for (size_t i = 0; i < input.size(); ++i) {
     out->push_back(ProcessedEntry(
                        input[i], strlen(input[i]),
                        i,
@@ -211,7 +211,7 @@ int ProcessedEntry::ProcessVector(const std::vector<const char *>& input,
 int ProcessedEntry::ProcessVectorOfStrings(
     const std::vector<std::string>& input, std::list<ProcessedEntry>* out,
     const int* score_matrix) {
-  for (int i = 0; i < input.size(); ++i) {
+  for (size_t i = 0; i < input.size(); ++i) {
     out->push_back(ProcessedEntry(
         input[i].data(), input[i].size(), i, score_matrix));
   }
@@ -221,7 +221,7 @@ int ProcessedEntry::ProcessVectorOfStrings(
 int ProcessedEntry::ProcessVectorOfStringViews(
     const std::vector<absl::string_view>& input, std::list<ProcessedEntry>* out,
     const int* score_matrix) {
-  for (int i = 0; i < input.size(); ++i) {
+  for (size_t i = 0; i < input.size(); ++i) {
     out->push_back(
         ProcessedEntry(input[i].data(), input[i].size(), i, score_matrix));
   }
@@ -287,8 +287,8 @@ void ReDiff::DiffVectorsOfStringViews(
 }
 
 void ReDiff::Diff() {
-  DCHECK_EQ(left_list_.size(), left_size_);
-  DCHECK_EQ(right_list_.size(), right_size_);
+  FILE_BASED_TEST_DRIVER_DCHECK_EQ(static_cast<int>(left_list_.size()), left_size_);
+  FILE_BASED_TEST_DRIVER_DCHECK_EQ(static_cast<int>(right_list_.size()), right_size_);
   left_matches_.clear();
   right_matches_.clear();
   for (int i = 0; i < left_size_; ++i) {
@@ -775,7 +775,7 @@ void ReDiff::Chunkify(const std::vector<std::pair<MatchType, int> >& matches,
   int first_index = 0;
   int last_index = 0;
 
-  for (int i = 1; i < matches.size(); ++i) {
+  for (size_t i = 1; i < matches.size(); ++i) {
     if (matches[i].first == last_type &&
         matches[i].second == last_line + 1) {
       // This match is the same type as the last one, and the line number is
@@ -795,7 +795,7 @@ void ReDiff::Chunkify(const std::vector<std::pair<MatchType, int> >& matches,
       else if (last_type == UNMATCHED)
         c.type = unmatched_type;
       else
-        LOG(FATAL) << "Invalid chunk type: " << last_type;
+        FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Invalid chunk type: " << last_type;
 
       // Start a new chunk here
       first_index = last_index = i;
@@ -840,19 +840,19 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
   // Note: this must be done after the above, since the above can modify some
   // added/removed chunks into different types.
   std::vector<std::pair<ChunkType, int> > left_candidates;
-  for (int i = 0; i < left_chunks->size(); ++i) {
+  for (size_t i = 0; i < left_chunks->size(); ++i) {
     if (left_chunks->at(i).type == REMOVED ||
         left_chunks->at(i).type == UNCHANGED)
       left_candidates.push_back(std::make_pair(left_chunks->at(i).type, i));
   }
   std::vector<std::pair<ChunkType, int> > right_candidates;
-  for (int i = 0; i < right_chunks->size(); ++i) {
+  for (size_t i = 0; i < right_chunks->size(); ++i) {
     if (right_chunks->at(i).type == ADDED ||
         right_chunks->at(i).type == UNCHANGED)
       right_candidates.push_back(std::make_pair(right_chunks->at(i).type, i));
   }
-  int i = 0;
-  int j = 0;
+  size_t i = 0;
+  size_t j = 0;
   while (i < left_candidates.size() && j < right_candidates.size()) {
     if (left_candidates[i].first == REMOVED &&
         right_candidates[j].first == ADDED) {
@@ -875,7 +875,7 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
     } else if (right_candidates[j].first == UNCHANGED) {
       ++i;
     } else {
-      LOG(FATAL) << "Internal error converting add/remove chunks to changes.";
+      FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Internal error converting add/remove chunks to changes.";
     }
   }
 
@@ -899,7 +899,7 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
       if (right_chunks->at(j).type != IGNORED)
         final_chunks->push_back(right_chunks->at(j));
       if (map_it != chunks_to_add.end() &&
-          map_it->first == j) {
+          map_it->first == static_cast<int>(j)) {
         DiffChunk c = left_chunks->at(map_it->second);
         // This is a chunk from the left, so its lines aren't what we want.
         // Swap them around.  Then change type to REMOVED (it was set to
@@ -910,8 +910,9 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
         c.type = REMOVED;
         final_chunks->push_back(c);
         ++map_it;
-      } else if (map_it != chunks_to_add.end() && map_it->first < j) {
-        LOG(FATAL) << "Internal error: missed chance to insert chunk at "
+      } else if (map_it != chunks_to_add.end() &&
+                 map_it->first < static_cast<int>(j)) {
+        FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Internal error: missed chance to insert chunk at "
                    << map_it->first << " (current index = " << j << ")";
       }
       ++j;
@@ -939,7 +940,7 @@ void ReDiff::ChunksToString(std::string* out) const {
   out->clear();
   std::vector<DiffChunk> v;
   ChunksToVector(&v);
-  for (int i = 0; i < chunks_.size(); ++i) {
+  for (size_t i = 0; i < chunks_.size(); ++i) {
     absl::StrAppendFormat(out, "%s %d %d %d %d\n", v[i].opcode(),
                           v[i].source_first, v[i].source_last, v[i].first_line,
                           v[i].last_line);
@@ -948,7 +949,7 @@ void ReDiff::ChunksToString(std::string* out) const {
 
 // Write our list of chunks to a provided vector.
 void ReDiff::ChunksToVector(std::vector<DiffChunk>* v) const {
-  for (int i = 0; i < chunks_.size(); ++i) {
+  for (size_t i = 0; i < chunks_.size(); ++i) {
     v->push_back(chunks_[i]);
     DiffChunk& c = v->back();
     // We count our lines a little differently from python's difflib, so
@@ -992,7 +993,7 @@ int ReDiff::index_of(int line_number, const std::vector<DiffChunk>& v) {
   // Lower bound just gives us a lower bound where line_number could be
   // inserted; we need to verify that the line number of this lower bound
   // is exactly equal to the value we expect.
-  CHECK(it != v.end()) << "index_of: entry not found.";
+  FILE_BASED_TEST_DRIVER_CHECK(it != v.end()) << "index_of: entry not found.";
   FILE_BASED_TEST_DRIVER_CHECK_EQ(it->last_line, line_number) << "index_of: entry not found.";
   // Use iterator subtraction to determine the index.
   return it - v.begin();

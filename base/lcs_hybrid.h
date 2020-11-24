@@ -295,7 +295,7 @@ int LcsHybrid<ItemT>::RunHybrid(
     int b = Run(left + split_x, left_size - split_x, left_offset + split_x,
                 right + split_y, right_size - split_y, right_offset + split_y,
                 chunks);
-    DCHECK(a + b == lcs);
+    FILE_BASED_TEST_DRIVER_DCHECK(a + b == lcs);
   }
   return lcs;
 }
