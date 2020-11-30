@@ -1,8 +1,12 @@
 ## File Based Test Driver
 
-#### Contents
+## Build
 
-[TOC]
+File Based Test Driver uses [bazel](https://bazel.build) for building and
+dependency resolution. After installing bazel (we maintain support for 1.0,
+but other versions may work), simply run:
+
+```bazel build ...```
 
 ## Overview
 
