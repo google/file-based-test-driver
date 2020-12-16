@@ -80,7 +80,7 @@ file_based_test_driver_base::StatusOr<std::vector<TestCaseMode>> TestCaseMode::P
       return ::file_based_test_driver_base::UnknownErrorBuilder().LogError()
              << "A test mode must be enclosed in [] but got: ";
     }
-    absl::string_view::size_type index = modes_string.find_first_of("]");
+    absl::string_view::size_type index = modes_string.find_first_of(']');
     if (index == absl::string_view::npos) {
       return ::file_based_test_driver_base::UnknownErrorBuilder().LogError()
              << "A test mode must be enclosed in [] but got: ";
