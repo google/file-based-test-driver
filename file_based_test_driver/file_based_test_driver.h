@@ -333,10 +333,10 @@ inline std::ostream& operator<<(std::ostream& out,
 // <parts>, the comments in <comments> (at the same index). Existing elements in
 // <parts> and <comments> are cleared. Is guaranteed to return at least one part
 // if <*line_number> is less than lines.size().
-void GetNextTestCase(const std::vector<std::string>& lines,
-                     int* line_number /* input and output */,
-                     std::vector<std::string>* parts,
-                     std::vector<TestCasePartComments>* comments);
+absl::Status GetNextTestCase(const std::vector<std::string>& lines,
+                             int* line_number /* input and output */,
+                             std::vector<std::string>* parts,
+                             std::vector<TestCasePartComments>* comments);
 
 // Builds a test file entry from parts and their start and end comments. If
 // there are less parts than comments, dumps the comments from the missing

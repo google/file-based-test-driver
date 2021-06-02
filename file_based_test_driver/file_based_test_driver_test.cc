@@ -27,6 +27,7 @@
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -38,6 +39,8 @@ ABSL_DECLARE_FLAG(int32_t, file_based_test_driver_insert_leading_blank_lines);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_generate_test_output);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_individual_tests);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_log_ignored_test);
+
+using ::file_based_test_driver::testing::StatusIs;
 
 // A replacement for VarSetter that works with new-style flags as well as
 // old-style flags.
@@ -101,7 +104,7 @@ void VerifyGetNextTestdata(
   int line_number = start_line;
   std::vector<std::string> parts;
   std::vector<internal::TestCasePartComments> comments;
-  internal::GetNextTestCase(lines, &line_number, &parts, &comments);
+  FILE_BASED_TEST_DRIVER_EXPECT_OK(internal::GetNextTestCase(lines, &line_number, &parts, &comments));
   EXPECT_EQ(expected_end_line, line_number);
   EXPECT_THAT(parts, ContainerEq(expected_parts));
   if (!expected_comments.empty()) {
@@ -180,20 +183,39 @@ TEST(TestdataUtilTest, Comment) {
       "\\# not a \\#comment\n"
       "Line 1\n"
       " foo # not a comment\n"
-      "\\# not a comment\n"
+      "# not a comment\n"
       " # not a comment\n"
+      "\\# not a comment\n"
       "# End Comment 1\n"
       "# End Comment 2\n";
 
   VerifyGetNextTestdata(
-      testdata, 0, 9,
+      testdata, 0, 10,
       {"# not a \\#comment\n"
        "Line 1\n"
        " foo # not a comment\n"
        "# not a comment\n"
-       " # not a comment\n"} /* expected_parts */,
+       " # not a comment\n"
+       "# not a comment\n"} /* expected_parts */,
       {{"# Start Comment 1\n# Start Comment 2\n",
         "# End Comment 1\n# End Comment 2\n"}} /* expected_comments */);
+
+  // Escaped comments in the middle are unescaped.
+  VerifyGetNextTestdata(
+      "\\# Test body 1\n"
+      "\\# Test body 2\n"
+      "# Test body 3\n"
+      "\\# Test body 4\n",
+      0, 4,
+      {"# Test body 1\n"
+       "# Test body 2\n"
+       "# Test body 3\n"
+       "# Test body 4\n"} /* expected_parts */,
+      {{}} /* expected_comments */,
+      "\\# Test body 1\n"
+      "# Test body 2\n"
+      "# Test body 3\n"
+      "\\# Test body 4\n" /* manual_expected_reassembled */);
 }
 
 TEST(TestdataUtilTest, EmptyLines) {
@@ -342,6 +364,22 @@ TEST(TestdataUtilTest, BreakIntoAlternations) {
                   {"'\\ea'", "'\\ea'"},
                   {"'\\'", "'\\'"},
                   {"'a\\aa'", "'a\\aa'"}}));
+}
+
+TEST(TestdataUtilTest, ErrorForCommentInTestBody) {
+  int line_number = 0;
+  std::vector<std::string> parts;
+  std::vector<internal::TestCasePartComments> comments;
+  FILE_BASED_TEST_DRIVER_EXPECT_OK(internal::GetNextTestCase({"SELECT", "# allowed comment", "1"},
+                                      &line_number, &parts, &comments));
+
+  line_number = 0;
+  parts.clear();
+  comments.clear();
+  EXPECT_THAT(
+      internal::GetNextTestCase({"SELECT 1", "--", "1", "# wrong comment", "2"},
+                                &line_number, &parts, &comments),
+      StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 // Callback for RunTestsFromFiles test below. Does some fixed transformations

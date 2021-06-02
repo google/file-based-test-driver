@@ -25,6 +25,7 @@
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -114,10 +115,10 @@ void ReadTestFile(absl::string_view filename, std::vector<std::string>* lines) {
   *lines = SplitTestFileData(file_data);
 }
 
-void GetNextTestCase(const std::vector<std::string>& lines,
-                     int* line_number /* input and output */,
-                     std::vector<std::string>* parts,
-                     std::vector<TestCasePartComments>* comments) {
+absl::Status GetNextTestCase(const std::vector<std::string>& lines,
+                             int* line_number /* input and output */,
+                             std::vector<std::string>* parts,
+                             std::vector<TestCasePartComments>* comments) {
   parts->clear();
   comments->clear();
   std::string current_part;
@@ -158,19 +159,21 @@ void GetNextTestCase(const std::vector<std::string>& lines,
     // All of the special cases have been checked, we have an actual test case
     // line.
     if (!current_comment_end.empty()) {
-      if (static_cast<size_t>(std::count(current_comment_end.begin(),
+      // We already captured something as a comment in the end of the part.
+      // Check if we can retroactively intrepret the comment as part of the
+      // test body.
+      if (  // The current end comment is a series of empty lines.
+          static_cast<size_t>(std::count(current_comment_end.begin(),
                                          current_comment_end.end(), '\n')) ==
-          current_comment_end.size()) {
-        // The current end comment is a series of empty lines. We've interpreted
-        // them as end comment lines, but now that we see that there are still
-        // test case lines, we retroactively interpret them as being part of the
-        // test case.
+              current_comment_end.size() ||
+          // We allow comments in the middle of the first part, aka test input.
+          parts->empty()) {
         absl::StrAppend(&current_part, current_comment_end);
         current_comment_end.clear();
       } else {
-        FILE_BASED_TEST_DRIVER_CHECK(current_comment_end.empty())
-            << "Comment \"" << current_comment_end
-            << "\" is contained within test part \"" << current_part << ".";
+        return absl::InvalidArgumentError(absl::StrCat(
+            "Comment \"", current_comment_end,
+            "\" is contained within test part \"", current_part, "."));
       }
     }
 
@@ -184,17 +187,18 @@ void GetNextTestCase(const std::vector<std::string>& lines,
   }
   parts->push_back(current_part);
   comments->push_back({current_comment_start, current_comment_end});
+  return absl::OkStatus();
 }
 
 // For each line in 'lines', replaces 'needle' by 'replacement' if it occurs
 // at the start of a line. Requires that each line is terminated with an \n.
-static void ReplaceAtStartOfLine(const std::string& needle,
-                                 const std::string& replacement,
+static void ReplaceAtStartOfLine(absl::string_view needle,
+                                 absl::string_view replacement,
                                  std::string* lines) {
   if (lines->empty()) return;
   FILE_BASED_TEST_DRIVER_CHECK(absl::EndsWith(*lines, "\n"));
   std::vector<std::string> split_lines =
-      absl::StrSplit(*lines, "\n", absl::AllowEmpty());
+      absl::StrSplit(*lines, '\n', absl::AllowEmpty());
   // Disregard the last line, it's not a line, but it's there because 'lines'
   // ends with a newline.
   for (size_t i = 0; i < split_lines.size() - 1; ++i) {
@@ -205,6 +209,26 @@ static void ReplaceAtStartOfLine(const std::string& needle,
   *lines = absl::StrJoin(split_lines, "\n");
 }
 
+// For the first and the last line in 'lines', replaces 'needle' by
+// 'replacement' if it occurs at the start of a line. Requires that each line is
+// terminated with an \n.
+static void ReplaceAtStartOfFirstAndLastLines(absl::string_view needle,
+                                              absl::string_view replacement,
+                                              std::string* lines) {
+  if (lines->empty()) return;
+  FILE_BASED_TEST_DRIVER_CHECK(absl::EndsWith(*lines, "\n"));
+  if (absl::StartsWith(*lines, needle)) {
+    lines->replace(0, needle.size(), replacement);
+  }
+  const size_t last_line_start =
+      lines->find_last_of('\n', lines->size() - 2) + 1;
+  const absl::string_view last_line =
+      absl::string_view(*lines).substr(last_line_start);
+  if (absl::StartsWith(last_line, needle)) {
+    lines->replace(last_line_start, needle.size(), replacement);
+  }
+}
+
 std::string BuildTestFileEntry(
     const std::vector<std::string>& parts,
     const std::vector<TestCasePartComments>& comments) {
@@ -213,18 +237,19 @@ std::string BuildTestFileEntry(
     if (i != 0) absl::StrAppend(&s, "--\n");
     std::string part = parts[i];
     ReplaceAtStartOfLine("\\", "\\\\", &part);
-    ReplaceAtStartOfLine("#", "\\#", &part);
+    if (i == 0) {
+      // In the first part (aka test input), escape only the first and the last
+      // # comment. All other lines are allowed to start there with #.
+      ReplaceAtStartOfFirstAndLastLines("#", "\\#", &part);
+    } else {
+      ReplaceAtStartOfLine("#", "\\#", &part);
+    }
     ReplaceAtStartOfLine("--", "\\--", &part);
     ReplaceAtStartOfLine("==", "\\==", &part);
     // Empty lines in test output are treated as part of comments when they're
     // at the start or end of the test case. Escape empty lines if they're the
     // first or last line.
-    if (absl::StartsWith(part, "\n")) {
-      part = absl::StrCat("\\", part);
-    }
-    if (absl::EndsWith(part, "\n\n")) {
-      part = absl::StrCat(part.substr(0, part.size() - 1), "\\\n");
-    }
+    ReplaceAtStartOfFirstAndLastLines("\n", "\\\n", &part);
     if (i < comments.size()) {
       absl::StrAppend(&s, comments[i].start_comment, part,
                       comments[i].end_comment);
@@ -457,7 +482,7 @@ static void BreakStringIntoAlternationsImpl(
   // Identify values in alternation. alternation_group_match[2] is the submatch
   // that has the contents of the {{}}.
   const std::vector<std::string> alternation_values =
-      absl::StrSplit(alternation_group_match[2], "|", absl::AllowEmpty());
+      absl::StrSplit(alternation_group_match[2], '|', absl::AllowEmpty());
 
   // For each alternation value, replace the first alternation group in <input>
   // with that value and recurse to expand the next alternation in <input>.
@@ -676,7 +701,7 @@ bool RunTestCasesFromOneFile(
     }
 
     const int start_line_number = line_number;
-    internal::GetNextTestCase(lines, &line_number, &parts, &comments);
+    FILE_BASED_TEST_DRIVER_CHECK_OK(internal::GetNextTestCase(lines, &line_number, &parts, &comments));
     FILE_BASED_TEST_DRIVER_CHECK(!parts.empty());
 
     found_diffs |= RunOneTestCase(filename, start_line_number, &parts,
@@ -1059,8 +1084,8 @@ int64_t CountTestCasesInFiles(absl::string_view filespec) {
       using file_based_test_driver::internal::TestCasePartComments;
       std::vector<std::string> parts;
       std::vector<TestCasePartComments> comments;
-      file_based_test_driver::internal::GetNextTestCase(lines, &line_number,
-                                                        &parts, &comments);
+      FILE_BASED_TEST_DRIVER_CHECK_OK(file_based_test_driver::internal::GetNextTestCase(
+          lines, &line_number, &parts, &comments));
       ++total_num_queries;
     }
   }

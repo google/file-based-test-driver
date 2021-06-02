@@ -19,6 +19,7 @@ cc_library(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:function_ref",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
@@ -117,13 +118,12 @@ cc_test(
     srcs = ["file_based_test_driver_test.cc"],
     deps = [
         ":file_based_test_driver",
-        "//file_based_test_driver/base",
         "//file_based_test_driver/base:file_util",
-        "//file_based_test_driver/base:map_util",
         "//file_based_test_driver/base:status_matchers",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
