@@ -132,26 +132,26 @@ struct TestCaseOption {
     kDuration,
   };
 
-  TestCaseOption(absl::string_view keyword, bool bool_value)
-      : keyword(keyword),
+  TestCaseOption(absl::string_view keyword_, bool bool_value)
+      : keyword(keyword_),
         type(kBool),
         default_value(bool_value),
         current_value(bool_value) {}
 
-  TestCaseOption(absl::string_view keyword, const std::string& str)
-      : keyword(keyword),
+  TestCaseOption(absl::string_view keyword_, const std::string& str)
+      : keyword(keyword_),
         type(kString),
         default_value(str),
         current_value(str) {}
 
-  TestCaseOption(absl::string_view keyword, int64_t int_value)
-      : keyword(keyword),
+  TestCaseOption(absl::string_view keyword_, int64_t int_value)
+      : keyword(keyword_),
         type(kInt64),
         default_value(int_value),
         current_value(int_value) {}
 
-  TestCaseOption(absl::string_view keyword, absl::Duration duration_value)
-      : keyword(keyword),
+  TestCaseOption(absl::string_view keyword_, absl::Duration duration_value)
+      : keyword(keyword_),
         type(kDuration),
         default_value(duration_value),
         current_value(duration_value) {}

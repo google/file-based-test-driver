@@ -133,7 +133,6 @@ class SourceLocation {
   std::uint_least32_t line_;
   std::uint_least32_t unused_column_ = 0;
   const char* file_name_;
-  const char* unused_function_name_ = nullptr;
 };
 
 }  // namespace file_based_test_driver_base

@@ -86,7 +86,7 @@ absl::Status ParseFirstLine(const absl::string_view part,
 
   absl::string_view stripped_first_line = result->first_line;
   stripped_first_line = absl::StripLeadingAsciiWhitespace(stripped_first_line);
-  absl::string_view test_modes_sp;
+  std::string test_modes_sp;
   if (absl::ConsumePrefix(&stripped_first_line, kPossibleModesPrefix)) {
     result->is_possible_modes = true;
     test_modes_sp = stripped_first_line;

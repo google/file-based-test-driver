@@ -189,10 +189,10 @@ class StatusAdaptorForMacros {
   StatusAdaptorForMacros(absl::Status&& status, SourceLocation loc)
       : builder_(std::move(status), loc) {}
 
-  StatusAdaptorForMacros(const StatusBuilder& builder, SourceLocation loc)
+  StatusAdaptorForMacros(const StatusBuilder& builder, SourceLocation)
       : builder_(builder) {}
 
-  StatusAdaptorForMacros(StatusBuilder&& builder, SourceLocation loc)
+  StatusAdaptorForMacros(StatusBuilder&& builder, SourceLocation)
       : builder_(std::move(builder)) {}
 
   StatusAdaptorForMacros(const StatusAdaptorForMacros&) = delete;
