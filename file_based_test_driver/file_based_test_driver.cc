@@ -469,7 +469,7 @@ static void BreakStringIntoAlternationsImpl(
         alternation_values_and_expanded_inputs,
     const std::string& selected_alternation_values) {
   // Identify one alternation group surrounded by "{{ }}".
-  absl::string_view alternation_group_match[3];
+  re2::StringPiece alternation_group_match[3];
   absl::string_view input_sp(input);
   // If alternation is not found, add input to output.
   if (!alternation_group_matcher->Match(
@@ -482,14 +482,14 @@ static void BreakStringIntoAlternationsImpl(
   // Identify values in alternation. alternation_group_match[2] is the submatch
   // that has the contents of the {{}}.
   const std::vector<std::string> alternation_values =
-      absl::StrSplit(alternation_group_match[2], '|', absl::AllowEmpty());
+      absl::StrSplit(alternation_group_match[2].data(), '|', absl::AllowEmpty());
 
   // For each alternation value, replace the first alternation group in <input>
   // with that value and recurse to expand the next alternation in <input>.
   for (const std::string& alternation_value : alternation_values) {
     // Replaces the 1st occurrence of alternation_group_match[1] => "{{...}}"".
     const std::string substituted_input =
-        StringReplace(input, alternation_group_match[1], alternation_value);
+        StringReplace(input, alternation_group_match[1].data(), alternation_value);
 
     // Recurse for expanding additional alternation groups.
     if (selected_alternation_values.empty()) {
