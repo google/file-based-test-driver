@@ -1,13 +1,5 @@
 ## File Based Test Driver
 
-## Build
-
-File Based Test Driver uses [bazel](https://bazel.build) for building and
-dependency resolution. After installing bazel (we maintain support for 1.0,
-but other versions may work), simply run:
-
-```bazel build ...```
-
 ## Overview
 
 file_based_test_driver
@@ -15,13 +7,13 @@ uses `.test` files to specify sets of inputs and expected outputs. The format
 of these files is documented in `file_based_test_driver.h`.
 
 A detailed example that shows all features is in
-[`example.test`](example.test) and the associated test driver
-[`example_test.cc`](example_test.cc).
+[`example.test`](file_based_test_driver/example.test) and the associated test driver
+[`example_test.cc`](file_based_test_driver/example_test.cc).
 
 #### Test output with modes
 
 file_based_test_driver's basic test runner
-[RunTestCasesFromFiles](file_based_test_driver.h)
+[RunTestCasesFromFiles](file_based_test_driver/file_based_test_driver.h)
 calls a callback to run a test, gets back the actual outputs, and does string
 comparison on the actual and expected outputs. In some cases, the test callback
 may run a test case multiple times in different modes and each mode may generate
@@ -35,10 +27,10 @@ that understands test modes. The format of the test file is very similar to the
 one that is used with the basic test runner. Each test still has an input block
 followed by multiple output blocks. The only difference is that the output
 blocks of a test must be parsable by
-[`test_case_outputs.h`](test_case_outputs.h).
+[`test_case_outputs.h`](file_based_test_driver/test_case_outputs.h).
 The text format of such test output and its internal representation is
 documented in
-[`test_case_outputs.h`](test_case_outputs.h).
+[`test_case_outputs.h`](file_based_test_driver/test_case_outputs.h).
 The new test runner will first parse the expected output and group the outputs
 by test modes. It then calls the test callback and gets back the actual outputs
 for one or more modes, merges them into the expected outputs (only the outputs
@@ -46,10 +38,10 @@ for the modes tested are replaced), and compares the merged results with the
 expected results.
 
 Example that shows the test mode related features is in
-[`example_with_modes.test`](example_with_modes.test)
+[`example_with_modes.test`](file_based_test_driver/example_with_modes.test)
 and
 the associated test driver
-[`example_test_with_modes.cc`](example_test_with_modes.cc).
+[`example_test_with_modes.cc`](file_based_test_driver/example_test_with_modes.cc).
 
 ## Contributions
 
