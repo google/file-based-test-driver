@@ -16,7 +16,6 @@
 #include "file_based_test_driver/file_based_test_driver.h"
 
 #include <algorithm>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -31,14 +30,12 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "file_based_test_driver/alternations.h"
 #include "file_based_test_driver/base/file_util.h"
 #include "file_based_test_driver/base/unified_diff.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 #include "file_based_test_driver/base/ret_check.h"
 #include "file_based_test_driver/base/status.h"
 
@@ -141,7 +138,7 @@ absl::Status GetNextTestCase(const std::vector<std::string>& lines,
     // This code first does a very cheap check (StartsWith) before proceeding
     // with the more expensive RE2 check; don't remove the cheap check unless
     // the replacement is also cheap!
-    if (absl::StartsWith(line, "--") && RE2::FullMatch(line, "\\-\\-\\s*")) {
+    if (absl::StartsWith(line, "--") && re2_st::RE2::FullMatch(line, "\\-\\-\\s*")) {
       parts->push_back(current_part);
       comments->push_back({current_comment_start, current_comment_end});
       current_part.clear();
@@ -288,10 +285,10 @@ static bool CompareAndAppendOutput(
   std::string output_string_for_diff = output_string;
   std::string expected_string_for_diff = expected_string;
   if (!absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex).empty()) {
-    RE2::GlobalReplace(&output_string_for_diff,
+    re2_st::RE2::GlobalReplace(&output_string_for_diff,
                        absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex),
                        "");
-    RE2::GlobalReplace(&expected_string_for_diff,
+    re2_st::RE2::GlobalReplace(&expected_string_for_diff,
                        absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex),
                        "");
   }
@@ -433,7 +430,7 @@ absl::Status RunAlternations(
 // Regex for finding alternation group. Uses ".*?" so inner matches are
 // nongreedy -- we want to get the shortest match, not the longest one.
 static char kRegexAlternationGroup[] = "(\\{\\{(.*?)\\}\\})";
-static const LazyRE2 alternation_group_matcher =
+static const re2_st::LazyRE2 alternation_group_matcher =
     {kRegexAlternationGroup};
 
 // Replace the first occurance of `oldsub` with `newsub` in `s`.  If s oldsub
@@ -469,11 +466,11 @@ static void BreakStringIntoAlternationsImpl(
         alternation_values_and_expanded_inputs,
     const std::string& selected_alternation_values) {
   // Identify one alternation group surrounded by "{{ }}".
-  re2::StringPiece alternation_group_match[3];
+  re2_st::StringPiece alternation_group_match[3];
   absl::string_view input_sp(input);
   // If alternation is not found, add input to output.
   if (!alternation_group_matcher->Match(
-          input_sp, 0 /* startpos */, input_sp.size(), RE2::UNANCHORED,
+          input_sp, 0 /* startpos */, input_sp.size(), re2_st::RE2::UNANCHORED,
           &alternation_group_match[0], 3 /* nmatch */)) {
     alternation_values_and_expanded_inputs->emplace_back(
         selected_alternation_values, input);

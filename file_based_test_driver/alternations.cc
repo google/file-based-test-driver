@@ -16,7 +16,7 @@
 #include "file_based_test_driver/alternations.h"
 
 #include "absl/strings/str_join.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 #include "file_based_test_driver/base/ret_check.h"
 
 namespace file_based_test_driver {
@@ -102,8 +102,8 @@ absl::Status AlternationSetWithModes::Record(
     const std::string& alternation_name,
     const RunTestCaseWithModesResult& test_case_result) {
   FILE_BASED_TEST_DRIVER_RET_CHECK(!finished_);
-  static LazyRE2 re = {"[\\n\\{\\}\\<\\>]"};
-  FILE_BASED_TEST_DRIVER_RET_CHECK(!RE2::PartialMatch(alternation_name, *re))
+  static re2_st::LazyRE2 re = {"[\\n\\{\\}\\<\\>]"};
+  FILE_BASED_TEST_DRIVER_RET_CHECK(!re2_st::RE2::PartialMatch(alternation_name, *re))
       << "Alternation \"" << alternation_name << "\" contains names that can't "
       << "be stored in a result_type: " << re->pattern();
   alternations_.emplace_back(
