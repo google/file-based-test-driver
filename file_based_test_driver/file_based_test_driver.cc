@@ -16,8 +16,10 @@
 #include "file_based_test_driver/file_based_test_driver.h"
 
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "file_based_test_driver/base/logging.h"
@@ -55,10 +57,6 @@ ABSL_FLAG(std::string, file_based_test_driver_ignore_regex, "",
           "If this flag is set then all substrings matching this "
           "pattern are replaced with a fixed string on a copy of the "
           "expected output and generated output for diffing.");
-ABSL_FLAG(bool, file_based_test_driver_generate_test_output, true,
-          "If true, the actual input and output from the test will be "
-          "written into the log.  It can be extracted to local files with "
-          "fetch-test-results.");
 ABSL_FLAG(bool, file_based_test_driver_log_ignored_test, true,
           "If true, the driver will log tests ignored by user defined test "
           "callback. If false, logging will be delayed until the callback "
@@ -70,6 +68,13 @@ ABSL_FLAG(bool, file_based_test_driver_individual_tests, true,
           "then requires digging through logs manually.");
 ABSL_FLAG(int32_t, file_based_test_driver_stack_size_kb, 64,
           "Use this stack size for the thread used to run tests.");
+
+// Firebolt Start
+ABSL_FLAG(bool, fb_write_actual, true,
+          "If true, a test failing in <testfile> will generate the actual"
+          "will generate the actual test result in <testfile>_actual.");
+// Firebolt End
+
 namespace {
 template <typename RunTestCaseResultType>
 using RunTestCallback =
@@ -78,6 +83,27 @@ constexpr size_t kLogBufferSize =
     15000;
 constexpr absl::string_view kRootDir =
     "";
+
+// Firebolt Start
+
+// Returns if this is a new test file to write actual results into.
+// This makes it easy to make sure multiple wrong results from a single file
+// get written out.
+bool isNewTestFile(std::string filename) {
+
+  static std::unordered_set<std::string> seen{};
+
+  if (seen.contains(filename)) {
+    return false;
+  } else {
+    seen.insert(std::move(filename));
+    return true;
+  }
+
+}
+
+// Firebolt End
+
 }  // namespace
 
 namespace file_based_test_driver {
@@ -346,6 +372,29 @@ static bool CompareAndAppendOutput(
           << diff
           << "******************* END TEST DIFF **********************\n\n";
     }
+    // Firebolt Start
+    if (absl::GetFlag(FLAGS_fb_write_actual)) {
+      // Figure out if we need to create a new _actual file or can use
+      // the existing one.
+      std::string out_file = std::string(filename) + "_actual";
+      auto mode = isNewTestFile(out_file) ? std::ios_base::out : std::ios_base::app;
+
+      // Write results to the file.
+      std::ofstream actual;
+      actual.open(std::string(filename) + "_actual", mode);
+
+      actual << "\n\n******************* FAILED TEST ********************"
+             << "\nTest failure on line " << start_line_number + 1 << ":\n"
+             << "\n=================== DIFF ===============================\n"
+             << diff
+             << "=================== EXPECTED ===========================\n"
+             << expected_string
+             << "=================== ACTUAL =============================\n"
+             << output_string;
+
+      actual.close();
+    }
+    // Firebolt End
   }
 
   // Add to all_output.
@@ -704,9 +753,7 @@ bool RunTestCasesFromOneFile(
     found_diffs |= RunOneTestCase(filename, start_line_number, &parts,
                                   &comments, run_test_case, &all_output);
   }
-  if (absl::GetFlag(FLAGS_file_based_test_driver_generate_test_output)) {
-    all_output.AddOutputToLog(std::string(filename));
-  }
+  all_output.AddOutputToLog(std::string(filename));
   return !found_diffs;
 }
 
