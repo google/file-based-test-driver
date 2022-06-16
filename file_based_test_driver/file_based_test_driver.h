@@ -199,8 +199,8 @@
 
 // Firebolt Start
 //
-// We are only exposing one custom flags here to minimize the risk of
-// shooting yourself in the foot:
+// We are only exposing one custom flag here to minimize the risk of
+// shooting ourselves in the foot:
 //
 // write_actual_result_files (default true)
 //    For tests that fail in the <testfile>, we write the actual result

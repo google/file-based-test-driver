@@ -72,7 +72,7 @@ ABSL_FLAG(int32_t, file_based_test_driver_stack_size_kb, 64,
 // Firebolt Start
 ABSL_FLAG(bool, fb_write_actual, true,
           "If true, a test failing in <testfile> will generate the actual"
-          "will generate the actual test result in <testfile>_actual.");
+          "test result in <testfile>_actual.");
 // Firebolt End
 
 namespace {
