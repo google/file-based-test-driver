@@ -27,7 +27,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 #include "file_based_test_driver/base/status_macros.h"
 
 namespace file_based_test_driver {
@@ -40,13 +40,13 @@ file_based_test_driver_base::StatusOr<TestCaseMode> TestCaseMode::Create(
       return ::file_based_test_driver_base::FailedPreconditionErrorBuilder()
              << "Multi-part modes cannot contain empty strings";
     }
-    static LazyRE2 whitespace = {"\\s"};
-    if (RE2::PartialMatch(part, *whitespace)) {
+    static re2_st::LazyRE2 whitespace = {"\\s"};
+    if (re2_st::RE2::PartialMatch(part, *whitespace)) {
       return ::file_based_test_driver_base::FailedPreconditionErrorBuilder()
              << "Multi-part modes cannot contain spaces";
     }
-    static LazyRE2 literal_star = {"\\*"};
-    if (RE2::PartialMatch(part, *literal_star)) {
+    static re2_st::LazyRE2 literal_star = {"\\*"};
+    if (re2_st::RE2::PartialMatch(part, *literal_star)) {
       return ::file_based_test_driver_base::FailedPreconditionErrorBuilder()
              << "Multi-part modes cannot contain literal stars (*)";
     }

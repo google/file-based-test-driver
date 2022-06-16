@@ -35,7 +35,7 @@
 #include "absl/strings/strip.h"
 #include "file_based_test_driver/base/diffchunk.h"
 #include "file_based_test_driver/base/rediff.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 
 namespace file_based_test_driver_base {
 

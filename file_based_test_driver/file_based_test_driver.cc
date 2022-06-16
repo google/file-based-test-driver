@@ -16,9 +16,10 @@
 #include "file_based_test_driver/file_based_test_driver.h"
 
 #include <algorithm>
-#include <map>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "file_based_test_driver/base/logging.h"
@@ -31,14 +32,12 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "absl/strings/strip.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "file_based_test_driver/alternations.h"
 #include "file_based_test_driver/base/file_util.h"
 #include "file_based_test_driver/base/unified_diff.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 #include "file_based_test_driver/base/ret_check.h"
 #include "file_based_test_driver/base/status.h"
 
@@ -58,10 +57,6 @@ ABSL_FLAG(std::string, file_based_test_driver_ignore_regex, "",
           "If this flag is set then all substrings matching this "
           "pattern are replaced with a fixed string on a copy of the "
           "expected output and generated output for diffing.");
-ABSL_FLAG(bool, file_based_test_driver_generate_test_output, true,
-          "If true, the actual input and output from the test will be "
-          "written into the log.  It can be extracted to local files with "
-          "fetch-test-results.");
 ABSL_FLAG(bool, file_based_test_driver_log_ignored_test, true,
           "If true, the driver will log tests ignored by user defined test "
           "callback. If false, logging will be delayed until the callback "
@@ -73,6 +68,13 @@ ABSL_FLAG(bool, file_based_test_driver_individual_tests, true,
           "then requires digging through logs manually.");
 ABSL_FLAG(int32_t, file_based_test_driver_stack_size_kb, 64,
           "Use this stack size for the thread used to run tests.");
+
+// Firebolt Start
+ABSL_FLAG(bool, fb_write_actual, true,
+          "If true, a test failing in <testfile> will generate the actual"
+          "test result in <testfile>_actual.");
+// Firebolt End
+
 namespace {
 template <typename RunTestCaseResultType>
 using RunTestCallback =
@@ -81,6 +83,27 @@ constexpr size_t kLogBufferSize =
     15000;
 constexpr absl::string_view kRootDir =
     "";
+
+// Firebolt Start
+
+// Returns if this is a new test file to write actual results into.
+// This makes it easy to make sure multiple wrong results from a single file
+// get written out.
+bool isNewTestFile(std::string filename) {
+
+  static std::unordered_set<std::string> seen{};
+
+  if (seen.contains(filename)) {
+    return false;
+  } else {
+    seen.insert(std::move(filename));
+    return true;
+  }
+
+}
+
+// Firebolt End
+
 }  // namespace
 
 namespace file_based_test_driver {
@@ -141,7 +164,7 @@ absl::Status GetNextTestCase(const std::vector<std::string>& lines,
     // This code first does a very cheap check (StartsWith) before proceeding
     // with the more expensive RE2 check; don't remove the cheap check unless
     // the replacement is also cheap!
-    if (absl::StartsWith(line, "--") && RE2::FullMatch(line, "\\-\\-\\s*")) {
+    if (absl::StartsWith(line, "--") && re2_st::RE2::FullMatch(line, "\\-\\-\\s*")) {
       parts->push_back(current_part);
       comments->push_back({current_comment_start, current_comment_end});
       current_part.clear();
@@ -288,10 +311,10 @@ static bool CompareAndAppendOutput(
   std::string output_string_for_diff = output_string;
   std::string expected_string_for_diff = expected_string;
   if (!absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex).empty()) {
-    RE2::GlobalReplace(&output_string_for_diff,
+    re2_st::RE2::GlobalReplace(&output_string_for_diff,
                        absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex),
                        "");
-    RE2::GlobalReplace(&expected_string_for_diff,
+    re2_st::RE2::GlobalReplace(&expected_string_for_diff,
                        absl::GetFlag(FLAGS_file_based_test_driver_ignore_regex),
                        "");
   }
@@ -349,6 +372,29 @@ static bool CompareAndAppendOutput(
           << diff
           << "******************* END TEST DIFF **********************\n\n";
     }
+    // Firebolt Start
+    if (absl::GetFlag(FLAGS_fb_write_actual)) {
+      // Figure out if we need to create a new _actual file or can use
+      // the existing one.
+      std::string out_file = std::string(filename) + "_actual";
+      auto mode = isNewTestFile(out_file) ? std::ios_base::out : std::ios_base::app;
+
+      // Write results to the file.
+      std::ofstream actual;
+      actual.open(std::string(filename) + "_actual", mode);
+
+      actual << "\n\n******************* FAILED TEST ********************"
+             << "\nTest failure on line " << start_line_number + 1 << ":\n"
+             << "\n=================== DIFF ===============================\n"
+             << diff
+             << "=================== EXPECTED ===========================\n"
+             << expected_string
+             << "=================== ACTUAL =============================\n"
+             << output_string;
+
+      actual.close();
+    }
+    // Firebolt End
   }
 
   // Add to all_output.
@@ -433,7 +479,7 @@ absl::Status RunAlternations(
 // Regex for finding alternation group. Uses ".*?" so inner matches are
 // nongreedy -- we want to get the shortest match, not the longest one.
 static char kRegexAlternationGroup[] = "(\\{\\{(.*?)\\}\\})";
-static const LazyRE2 alternation_group_matcher =
+static const re2_st::LazyRE2 alternation_group_matcher =
     {kRegexAlternationGroup};
 
 // Replace the first occurance of `oldsub` with `newsub` in `s`.  If s oldsub
@@ -469,11 +515,11 @@ static void BreakStringIntoAlternationsImpl(
         alternation_values_and_expanded_inputs,
     const std::string& selected_alternation_values) {
   // Identify one alternation group surrounded by "{{ }}".
-  re2::StringPiece alternation_group_match[3];
+  re2_st::StringPiece alternation_group_match[3];
   absl::string_view input_sp(input);
   // If alternation is not found, add input to output.
   if (!alternation_group_matcher->Match(
-          input_sp, 0 /* startpos */, input_sp.size(), RE2::UNANCHORED,
+          input_sp, 0 /* startpos */, input_sp.size(), re2_st::RE2::UNANCHORED,
           &alternation_group_match[0], 3 /* nmatch */)) {
     alternation_values_and_expanded_inputs->emplace_back(
         selected_alternation_values, input);
@@ -707,9 +753,7 @@ bool RunTestCasesFromOneFile(
     found_diffs |= RunOneTestCase(filename, start_line_number, &parts,
                                   &comments, run_test_case, &all_output);
   }
-  if (absl::GetFlag(FLAGS_file_based_test_driver_generate_test_output)) {
-    all_output.AddOutputToLog(std::string(filename));
-  }
+  all_output.AddOutputToLog(std::string(filename));
   return !found_diffs;
 }
 

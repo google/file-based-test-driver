@@ -253,8 +253,6 @@ void LogMessage::SendToLog(const std::string &message_text) {
     fprintf(stderr, "%s\n", message_text.c_str());
     fflush(stderr);
   }
-  printf("%s\n", message_text.c_str());
-  fflush(stdout);
 }
 
 void LogMessage::Flush() {

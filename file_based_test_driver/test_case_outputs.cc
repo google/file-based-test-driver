@@ -33,7 +33,7 @@
 #include "absl/strings/strip.h"
 #include "file_based_test_driver/test_case_mode.h"
 #include "file_based_test_driver/base/map_util.h"
-#include "re2/re2.h"
+#include "re2_st/re2.h"
 #include "file_based_test_driver/base/ret_check.h"
 #include "file_based_test_driver/base/status_macros.h"
 
@@ -93,7 +93,7 @@ absl::Status ParseFirstLine(const absl::string_view part,
   } else {
     result->is_possible_modes = false;
     // TODO: Support [\n{}<>] in alternation modes with escaping.
-    if (!RE2::FullMatch(stripped_first_line, "^<([^>]*)>(.*)",
+    if (!re2_st::RE2::FullMatch(stripped_first_line, "^<([^>]*)>(.*)",
                         &result->result_type, &test_modes_sp)) {
       return absl::OkStatus();
     }

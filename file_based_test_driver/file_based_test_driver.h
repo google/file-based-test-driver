@@ -197,17 +197,16 @@
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/run_test_case_result.h"
 
-// Set this flag to a positive value to force each test case to start with a
-// particular number of blank lines.
-ABSL_DECLARE_FLAG(int32_t, file_based_test_driver_insert_leading_blank_lines);
-
-// Set this flag to replace all substrings matching this pattern with a fixed
-// string on a copy of the expected output and generated output for diffing.
-ABSL_DECLARE_FLAG(std::string, file_based_test_driver_ignore_regex);
-
-// Set this flag to enable calling EXPECT_EQ on every diff. This enables
-// displaying individual diff failures in sponge.
-ABSL_DECLARE_FLAG(bool, file_based_test_driver_individual_tests);
+// Firebolt Start
+//
+// We are only exposing one custom flag here to minimize the risk of
+// shooting ourselves in the foot:
+//
+// write_actual_result_files (default true)
+//    For tests that fail in the <testfile>, we write the actual result
+//    into a file called <testfile>_actual.
+ABSL_DECLARE_FLAG(bool, fb_write_actual);
+// Firebolt End
 
 namespace file_based_test_driver {
 
