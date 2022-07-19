@@ -372,30 +372,26 @@ static bool CompareAndAppendOutput(
           << diff
           << "******************* END TEST DIFF **********************\n\n";
     }
-    // Firebolt Start
-    if (absl::GetFlag(FLAGS_fb_write_actual)) {
-      // Figure out if we need to create a new _actual file or can use
-      // the existing one.
-      std::string out_file = std::string(filename) + "_actual";
-      auto mode = isNewTestFile(out_file) ? std::ios_base::out : std::ios_base::app;
-
-      // Write results to the file.
-      std::ofstream actual;
-      actual.open(std::string(filename) + "_actual", mode);
-
-      actual << "\n\n******************* FAILED TEST ********************"
-             << "\nTest failure on line " << start_line_number + 1 << ":\n"
-             << "\n=================== DIFF ===============================\n"
-             << diff
-             << "=================== EXPECTED ===========================\n"
-             << expected_string
-             << "=================== ACTUAL =============================\n"
-             << output_string;
-
-      actual.close();
-    }
-    // Firebolt End
   }
+
+  // Firebolt Start
+  std::ofstream actual;
+  if (absl::GetFlag(FLAGS_fb_write_actual)) {
+    // Figure out if we need to create a new _actual file or can use
+    // the existing one.
+    std::string out_file = std::string(filename) + "_actual";
+    auto mode =
+        isNewTestFile(out_file) ? std::ios_base::out : std::ios_base::app;
+
+    // Write results to the file.
+    actual.open(std::string(filename) + "_actual", mode);
+    if (!all_output->empty()) {
+      actual << "==\n";
+    }
+    actual << output_string;
+    actual.close();
+  }
+  // Firebolt End
 
   // Add to all_output.
   if (!all_output->empty()) absl::StrAppend(all_output, "==\n");
