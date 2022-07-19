@@ -394,9 +394,7 @@ static bool CompareAndAppendOutput(
   // Firebolt End
 
   // Add to all_output.
-  if (!all_output->empty()) {
-    absl::StrAppend(all_output, "==\n");
-  }
+  if (!all_output->empty()) absl::StrAppend(all_output, "==\n");
   if (matches_requested_same_as_previous) {
     absl::StrAppend(all_output,
                     internal::BuildTestFileEntry(
