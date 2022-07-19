@@ -385,17 +385,17 @@ static bool CompareAndAppendOutput(
 
     // Write results to the file.
     actual.open(std::string(filename) + "_actual", mode);
+    if (!all_output->empty()) {
+      actual << "==\n";
+    }
+    actual << output_string;
+    actual.close();
   }
   // Firebolt End
 
   // Add to all_output.
   if (!all_output->empty()) {
     absl::StrAppend(all_output, "==\n");
-    // Firebolt Start
-    if (absl::GetFlag(FLAGS_fb_write_actual)) {
-      actual << "==\n";
-    }
-    // Firebolt End
   }
   if (matches_requested_same_as_previous) {
     absl::StrAppend(all_output,
@@ -404,12 +404,6 @@ static bool CompareAndAppendOutput(
   } else {
     absl::StrAppend(all_output, output_string);
   }
-  // Firebolt Start
-  if (absl::GetFlag(FLAGS_fb_write_actual)) {
-    actual << output_string;
-    actual.close();
-  }
-  // Firebolt End
 
   return found_diffs;
 }
