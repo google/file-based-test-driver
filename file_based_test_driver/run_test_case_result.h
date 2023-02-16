@@ -71,6 +71,13 @@ class RunTestCaseResultBase {
   // Returns true if output has been added for the given test case.
   virtual bool IsEmpty() const = 0;
 
+  // Firebolt Start
+  bool expected_output_is_regex() const { return expected_output_is_regex_; }
+  void set_expected_output_is_regex(bool expected_output_is_regex) {
+    expected_output_is_regex_ = expected_output_is_regex;
+  }
+  // Firebolt End
+
  private:
   // If set to true, indicates that the test was intentionally skipped.
   // In this case, the test driver will pretend that the test returned exactly
@@ -81,6 +88,12 @@ class RunTestCaseResultBase {
   int line_ = 0;
   std::vector<std::string> parts_;
   std::string test_alternation_;
+  // Firebolt Start
+  // If expected_output_is_regex_ is true, treat the expected output as a regex
+  // that must match the entire actual output. Otherwise, the expected output
+  // must match the actual output literally.
+  bool expected_output_is_regex_{false};
+  // Firebolt End
 };
 
 // The result of a test case run without Modes support. Output should be added

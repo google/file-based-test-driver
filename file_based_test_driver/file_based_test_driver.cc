@@ -300,7 +300,10 @@ static bool CompareAndAppendOutput(
     const std::string& expected_string, const std::string& output_string,
     const std::string& test_string, bool matches_requested_same_as_previous,
     absl::string_view filename, int start_line_number,
-    std::vector<TestCasePartComments>* comments, std::string* all_output) {
+    std::vector<TestCasePartComments>* comments, std::string* all_output,
+    bool expected_output_is_regex = false,
+    const std::vector<std::string> expected_parts = {},
+    const std::vector<std::string> output_parts = {}) {
   bool found_diffs = false;
 
   // If the file_based_test_driver_ignore_regex flag is set, then
@@ -330,7 +333,48 @@ static bool CompareAndAppendOutput(
   }
 
   // Compare output.
-  if (expected_string_for_diff != output_string_for_diff) {
+  // Firebolt Start
+  // If expected_output_is_regex is true, we check every part of the
+  // output separately. Therefore, the number of parts must match.
+  if (expected_output_is_regex &&
+      expected_parts.size() == output_parts.size()) {
+    FILE_BASED_TEST_DRIVER_LOG(INFO)
+        << "The expected output is treated as a regex that must match the "
+           "entire generated output.";
+    // Treat every part of the expected output as a regex that must match the
+    // entire corresponding actual output part. Deliberately ignore the flag
+    // file_based_test_driver_ignore_regex because this can be used for the same
+    // thing and more. Start at index 1 to ignore the query text. Otherwise,
+    // regex meta chars etc. would have to be escaped in the query text.
+    for (size_t i = 1; i < expected_parts.size(); ++i) {
+      if (!re2_st::RE2::FullMatch(output_parts[i], expected_parts[i])) {
+        if (!found_diffs) {
+          // Only print it once.
+          ADD_FAILURE()
+              << "\n\n******************* BEGIN TEST DIFF ********************"
+              << "\nFailure in " << filename << ", line "
+              << start_line_number + 1 << ":\n\n";
+        }
+        found_diffs = true;
+
+        ADD_FAILURE()
+            << "=============== EXPECTED REGEX PART ====================\n"
+            << expected_parts[i]
+            << "================== ACTUAL PART =========================\n"
+            << output_parts[i];
+      }
+    }
+    if (found_diffs) {
+      ADD_FAILURE()
+          << "\n================= EXPECTED REGEX =======================\n"
+          << expected_string
+          << "=================== ACTUAL =============================\n"
+          << output_string
+          << "\n******************* END TEST DIFF **********************\n\n";
+    }
+  }
+  // Firebolt End
+  else if (expected_string_for_diff != output_string_for_diff) {
     std::vector<std::string> parts =
         absl::StrSplit(filename, absl::StrCat("/", GetWorkspace(), "/"));
     std::string relpath = parts[parts.size() - 1];
@@ -465,6 +509,10 @@ absl::Status RunAlternations(
       FILE_BASED_TEST_DRIVER_RETURN_IF_ERROR(
           alternation_set.Record(test_alternation, sub_test_result));
     }
+    // Firebolt Start
+    result->set_expected_output_is_regex(
+        sub_test_result.expected_output_is_regex());
+    // Firebolt End
   }
 
   FILE_BASED_TEST_DRIVER_RETURN_IF_ERROR(alternation_set.Finish(result));
@@ -833,6 +881,9 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
       absl::StrCat("test case from ", filename, ", line ",
                    start_line_number + 1, ":\n", (*parts)[0]);
   bool ignore_test_output = false;
+  // Firebolt Start
+  bool expected_output_is_regex{false};
+  // Firebolt End
   bool matches_requested_same_as_previous = false;
   std::vector<std::string> output;
   if ((*parts)[0].empty() && parts->size() == 1) {
@@ -872,6 +923,9 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     FILE_BASED_TEST_DRIVER_CHECK_OK(internal::RunAlternations(&test_result, run_test_case));
     output = test_result.test_outputs();
     ignore_test_output = test_result.ignore_test_output();
+    // Firebolt Start
+    expected_output_is_regex = test_result.expected_output_is_regex();
+    // Firebolt End
   }
 
   // Ensure all nonempty parts end in \n.
@@ -934,7 +988,8 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
   return internal::CompareAndAppendOutput(
              expected_string, output_string, (*parts)[0],
              matches_requested_same_as_previous, filename, start_line_number,
-             comments, all_output->GetAllOutput()) ||
+             comments, all_output->GetAllOutput(), expected_output_is_regex,
+             *parts, output) ||
          added_blank_lines;
 }
 
