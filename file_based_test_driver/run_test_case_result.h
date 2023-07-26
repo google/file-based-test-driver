@@ -76,6 +76,11 @@ class RunTestCaseResultBase {
   void set_expected_output_is_regex(bool expected_output_is_regex) {
     expected_output_is_regex_ = expected_output_is_regex;
   }
+
+  bool compare_unsorted_result() const { return compare_unsorted_result_; }
+  void set_compare_unsorted_result(bool compare_unsorted_result) {
+    compare_unsorted_result_ = compare_unsorted_result;
+  }
   // Firebolt End
 
  private:
@@ -93,6 +98,10 @@ class RunTestCaseResultBase {
   // that must match the entire actual output. Otherwise, the expected output
   // must match the actual output literally.
   bool expected_output_is_regex_{false};
+  // If compare_unsorted_result_ is true, the actual result matches the expected
+  // result even if the order of the lines is different. Currently, this is
+  // achieved by lexicographically sorting the lines before comparison.
+  bool compare_unsorted_result_{false};
   // Firebolt End
 };
 

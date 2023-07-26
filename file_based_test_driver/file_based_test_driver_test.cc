@@ -36,9 +36,9 @@
 #include "file_based_test_driver/base/status_matchers.h"
 
 ABSL_DECLARE_FLAG(int32_t, file_based_test_driver_insert_leading_blank_lines);
-ABSL_DECLARE_FLAG(bool, file_based_test_driver_generate_test_output);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_individual_tests);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_log_ignored_test);
+ABSL_DECLARE_FLAG(std::string, file_based_test_driver_ignore_regex);
 
 using ::file_based_test_driver::testing::StatusIs;
 
@@ -561,6 +561,54 @@ sum 5
   EXPECT_EQ(21, num_callbacks);
 }
 
+// Callback for CompareUnsortedResult test below.
+static void RunTestCompareUnsortedResultCallback(
+    absl::string_view test_case,
+    file_based_test_driver::RunTestCaseResult* test_result) {
+  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
+  test_result->set_compare_unsorted_result(true);
+  if (test_case == "Test 1\n") {
+    test_result->AddTestOutput("b\nd\nc\na\n");
+  } else if (test_case == "Test 2\n") {
+    test_result->AddTestOutput("Pas\nTob\nBen\nLeo\nLor\n");
+  } else if (test_case == "Test 3\n") {
+    test_result->AddTestOutput("42\n43\n44\n");
+  }
+}
+
+// The actual result matches the expected result even if the order of the lines
+// is different.
+TEST_F(TestdataUtilCallbackTest, CompareUnsortedResult) {
+  const std::string test_file_contents = R"(Test 1
+--
+c
+a
+d
+b
+==
+Test {{2|3}}
+--
+ALTERNATION GROUP: 2
+--
+Tob
+Leo
+Ben
+Lor
+Pas
+--
+ALTERNATION GROUP: 3
+--
+44
+42
+43
+)";
+
+  internal::RegisteredTempFile test_file("testdata_util_test.test",
+                                         test_file_contents);
+  EXPECT_TEST_PASSES(RunTestCasesFromFiles(
+      test_file.filename(), &RunTestCompareUnsortedResultCallback));
+}
+
 TEST_F(TestdataUtilCallbackTest, RunTestCasesWithModesFromFiles) {
   const std::string test_file_contents =
       R"(line 1
@@ -838,7 +886,6 @@ run_this
 )";
   internal::RegisteredTempFile test_file("testdata_util_flag_test.test",
                                          test_file_contents);
-  FlagSetter setter(&FLAGS_file_based_test_driver_generate_test_output, false);
 
   // By default, FLAGS_file_based_test_driver_log_ignored_test is true. Log
   // file should look like:

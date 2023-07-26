@@ -303,7 +303,56 @@ static bool CompareAndAppendOutput(
     std::vector<TestCasePartComments>* comments, std::string* all_output,
     bool expected_output_is_regex = false,
     const std::vector<std::string> expected_parts = {},
-    const std::vector<std::string> output_parts = {}) {
+    const std::vector<std::string> output_parts = {},
+    bool compare_unsorted_result = false) {
+  // Firebolt Start
+  // If compare_unsorted_result is true, sort the lines of the actual and
+  // expected result and call CompareAndAppendOutput again with the modified
+  // arguments.
+  if (compare_unsorted_result && expected_parts.size() == output_parts.size()) {
+    FILE_BASED_TEST_DRIVER_LOG(INFO)
+        << "The lines of the actual and expected result are sorted "
+           "lexicographically before comparison.";
+
+    std::vector<std::string> sorted_expected_parts = expected_parts;
+    std::vector<std::string> sorted_output_parts = output_parts;
+
+    // Do not sort the query text or the descriptions of the alternation groups.
+    for (size_t i = 1; i < expected_parts.size(); ++i) {
+      const bool is_alternation_group_descr =
+          (i + 1) < expected_parts.size() && (i % 2 == 1);
+      if (is_alternation_group_descr) {
+        continue;
+      }
+
+      const auto sort_lines = [](std::string_view part) {
+        // Exclude lines with only whitespace, as they lead to undesired results
+        // after sorting when calling BuildTestFileEntry.
+        std::vector<std::string> lines =
+            absl::StrSplit(part, "\n", absl::SkipWhitespace());
+        std::sort(lines.begin(), lines.end());
+        std::string sorted_part = absl::StrJoin(lines, "\n");
+        sorted_part.push_back('\n');
+        return sorted_part;
+      };
+      sorted_expected_parts[i] = sort_lines(sorted_expected_parts[i]);
+      sorted_output_parts[i] = sort_lines(sorted_output_parts[i]);
+    }
+
+    const std::string sorted_output_string =
+        internal::BuildTestFileEntry(sorted_output_parts, *comments);
+    const std::string sorted_expected_string =
+        internal::BuildTestFileEntry(sorted_expected_parts, *comments);
+    // Set sort_result_lines to false because we don't need to sort again.
+    return internal::CompareAndAppendOutput(
+        sorted_expected_string, sorted_output_string,
+        sorted_expected_parts.at(0), matches_requested_same_as_previous,
+        filename, start_line_number, comments, all_output,
+        expected_output_is_regex, sorted_expected_parts, sorted_output_parts,
+        /* sort_result_lines */ false);
+  }
+  // Firebolt End
+
   bool found_diffs = false;
 
   // If the file_based_test_driver_ignore_regex flag is set, then
@@ -512,6 +561,8 @@ absl::Status RunAlternations(
     // Firebolt Start
     result->set_expected_output_is_regex(
         sub_test_result.expected_output_is_regex());
+    result->set_compare_unsorted_result(
+        sub_test_result.compare_unsorted_result());
     // Firebolt End
   }
 
@@ -883,6 +934,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
   bool ignore_test_output = false;
   // Firebolt Start
   bool expected_output_is_regex{false};
+  bool compare_unsorted_result{false};
   // Firebolt End
   bool matches_requested_same_as_previous = false;
   std::vector<std::string> output;
@@ -925,6 +977,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     ignore_test_output = test_result.ignore_test_output();
     // Firebolt Start
     expected_output_is_regex = test_result.expected_output_is_regex();
+    compare_unsorted_result = test_result.compare_unsorted_result();
     // Firebolt End
   }
 
@@ -989,7 +1042,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
              expected_string, output_string, (*parts)[0],
              matches_requested_same_as_previous, filename, start_line_number,
              comments, all_output->GetAllOutput(), expected_output_is_regex,
-             *parts, output) ||
+             *parts, output, compare_unsorted_result) ||
          added_blank_lines;
 }
 
