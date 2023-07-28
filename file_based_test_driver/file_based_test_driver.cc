@@ -324,19 +324,8 @@ static bool CompareAndAppendOutput(
       if (is_alternation_group_descr) {
         continue;
       }
-
-      const auto sort_lines = [](std::string_view part) {
-        // Exclude lines with only whitespace, as they lead to undesired results
-        // after sorting when calling BuildTestFileEntry.
-        std::vector<std::string> lines =
-            absl::StrSplit(part, "\n", absl::SkipWhitespace());
-        std::sort(lines.begin(), lines.end());
-        std::string sorted_part = absl::StrJoin(lines, "\n");
-        sorted_part.push_back('\n');
-        return sorted_part;
-      };
-      sorted_expected_parts[i] = sort_lines(sorted_expected_parts[i]);
-      sorted_output_parts[i] = sort_lines(sorted_output_parts[i]);
+      sorted_expected_parts[i] = SortLines(sorted_expected_parts[i]);
+      sorted_output_parts[i] = SortLines(sorted_output_parts[i]);
     }
 
     const std::string sorted_output_string =
@@ -1222,6 +1211,24 @@ bool RunTestCasesWithModesFromFiles(
                                RunTestCaseWithModesOutput>(
       filespec, wrapped_run_test_case);
 }
+
+// Firebolt Start
+std::string SortLines(absl::string_view s) {
+  const bool ends_with_nl = !s.empty() && s.back() == '\n';
+  if (ends_with_nl) {
+    // Remove the final newline char to avoid that StrSplit adds an empty string
+    // to lines.
+    s.remove_suffix(1);
+  }
+  std::vector<std::string> lines = absl::StrSplit(s, "\n");
+  std::sort(lines.begin(), lines.end());
+  std::string sorted_lines = absl::StrJoin(lines, "\n");
+  if (ends_with_nl) {
+    sorted_lines.push_back('\n');
+  }
+  return sorted_lines;
+}
+// Firebolt End
 
 int64_t CountTestCasesInFiles(absl::string_view filespec) {
   std::vector<std::string> test_files;

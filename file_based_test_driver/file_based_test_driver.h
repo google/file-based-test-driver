@@ -290,6 +290,11 @@ ABSL_MUST_USE_RESULT bool RunTestCasesWithModesFromFiles(
 // RunTestCaseFromFiles(filespec, run_test_case) were called.
 int64_t CountTestCasesInFiles(absl::string_view filespec);
 
+// Firebolt Start
+// Returns a string with all the lines in s sorted lexicographically.
+std::string SortLines(absl::string_view s);
+// Firebolt End
+
 // Internal functions. Exposed here for unit testing purposes only, do not use
 // directly.
 namespace internal {

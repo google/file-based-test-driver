@@ -133,6 +133,12 @@ void VerifyGetNextTestdata(
   }
 }
 
+TEST(TestdataUtilTest, SortLines) {
+  EXPECT_EQ("a\nb\nc", SortLines("b\na\nc"));
+  EXPECT_EQ("1\n2\n3\n", SortLines("2\n3\n1\n"));
+  EXPECT_EQ("aba\nabb\nabc\n", SortLines("abb\naba\nabc\n"));
+}
+
 TEST(TestdataUtilTest, Basic) {
   VerifyGetNextTestdata(
       "Part 1\n"
@@ -573,6 +579,10 @@ static void RunTestCompareUnsortedResultCallback(
     test_result->AddTestOutput("Pas\nTob\nBen\nLeo\nLor\n");
   } else if (test_case == "Test 3\n") {
     test_result->AddTestOutput("42\n43\n44\n");
+  } else if (test_case == "Test 4\n") {
+    test_result->AddTestOutput("2\n1\n3\n");
+  } else if (test_case == "Test 5\n") {
+    test_result->AddTestOutput("3\n1\n2\n");
   }
 }
 
@@ -601,6 +611,12 @@ ALTERNATION GROUP: 3
 44
 42
 43
+==
+Test {{4|5}}
+--
+1
+2
+3
 )";
 
   internal::RegisteredTempFile test_file("testdata_util_test.test",

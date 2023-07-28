@@ -18,6 +18,7 @@
 #include "absl/strings/str_join.h"
 #include "re2_st/re2.h"
 #include "file_based_test_driver/base/ret_check.h"
+#include "file_based_test_driver/file_based_test_driver.h"
 
 namespace file_based_test_driver {
 
@@ -27,8 +28,16 @@ const char AlternationSetWithModes::kEmptyAlternationName[] = "EMPTY";
 absl::Status AlternationSet::Record(const std::string& alternation_name,
                                     const RunTestCaseResult& test_case_result) {
   FILE_BASED_TEST_DRIVER_RET_CHECK(!finished_);
-  alternation_map_[test_case_result.test_outputs()].push_back(
-      alternation_names_.size());
+  // Firebolt Start
+  std::vector<std::string> test_outputs = test_case_result.test_outputs();
+  if (test_case_result.compare_unsorted_result()) {
+    // test_outputs.size() > 1 if there are multiple outputs per alternation.
+    for (std::string& output : test_outputs) {
+      output = SortLines(output);
+    }
+  }
+  alternation_map_[test_outputs].push_back(alternation_names_.size());
+  // Firebolt End
   alternation_names_.push_back(alternation_name.empty() ? kEmptyAlternationName
                                                         : alternation_name);
   return absl::OkStatus();
