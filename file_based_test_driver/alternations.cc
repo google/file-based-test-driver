@@ -33,7 +33,7 @@ absl::Status AlternationSet::Record(const std::string& alternation_name,
   if (test_case_result.compare_unsorted_result()) {
     // test_outputs.size() > 1 if there are multiple outputs per alternation.
     for (std::string& output : test_outputs) {
-      output = SortLines(output);
+      output = SortLines(output, test_case_result.output_has_header());
     }
   }
   alternation_map_[test_outputs].push_back(alternation_names_.size());

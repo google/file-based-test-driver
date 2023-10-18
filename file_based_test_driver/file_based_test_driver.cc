@@ -304,7 +304,8 @@ static bool CompareAndAppendOutput(
     bool expected_output_is_regex = false,
     const std::vector<std::string> expected_parts = {},
     const std::vector<std::string> output_parts = {},
-    bool compare_unsorted_result = false) {
+    bool compare_unsorted_result = false,
+    bool output_has_header = false) {
   // Firebolt Start
   // If compare_unsorted_result is true, sort the lines of the actual and
   // expected result and call CompareAndAppendOutput again with the modified
@@ -324,8 +325,9 @@ static bool CompareAndAppendOutput(
       if (is_alternation_group_descr) {
         continue;
       }
-      sorted_expected_parts[i] = SortLines(sorted_expected_parts[i]);
-      sorted_output_parts[i] = SortLines(sorted_output_parts[i]);
+      sorted_expected_parts[i] = SortLines(sorted_expected_parts[i], output_has_header);
+      // No need to sort output_parts, because they were already sorted.
+      // sorted_output_parts[i] = SortLines(sorted_output_parts[i]);
     }
 
     const std::string sorted_output_string =
@@ -338,7 +340,7 @@ static bool CompareAndAppendOutput(
         sorted_expected_parts.at(0), matches_requested_same_as_previous,
         filename, start_line_number, comments, all_output,
         expected_output_is_regex, sorted_expected_parts, sorted_output_parts,
-        /* sort_result_lines */ false);
+        /* sort_result_lines */ false, /* output_has_header */ false);
   }
   // Firebolt End
 
@@ -552,6 +554,8 @@ absl::Status RunAlternations(
         sub_test_result.expected_output_is_regex());
     result->set_compare_unsorted_result(
         sub_test_result.compare_unsorted_result());
+    result->set_output_has_header(
+        sub_test_result.output_has_header());
     // Firebolt End
   }
 
@@ -924,6 +928,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
   // Firebolt Start
   bool expected_output_is_regex{false};
   bool compare_unsorted_result{false};
+  bool output_has_header{false};;
   // Firebolt End
   bool matches_requested_same_as_previous = false;
   std::vector<std::string> output;
@@ -967,6 +972,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
     // Firebolt Start
     expected_output_is_regex = test_result.expected_output_is_regex();
     compare_unsorted_result = test_result.compare_unsorted_result();
+    output_has_header = test_result.output_has_header();
     // Firebolt End
   }
 
@@ -1031,7 +1037,7 @@ bool RunOneTestCase<RunTestCaseResult, RunTestCaseOutput>(
              expected_string, output_string, (*parts)[0],
              matches_requested_same_as_previous, filename, start_line_number,
              comments, all_output->GetAllOutput(), expected_output_is_regex,
-             *parts, output, compare_unsorted_result) ||
+             *parts, output, compare_unsorted_result, output_has_header) ||
          added_blank_lines;
 }
 
@@ -1213,7 +1219,7 @@ bool RunTestCasesWithModesFromFiles(
 }
 
 // Firebolt Start
-std::string SortLines(absl::string_view s) {
+std::string SortLines(absl::string_view s, bool skip_header) {
   const bool ends_with_nl = !s.empty() && s.back() == '\n';
   if (ends_with_nl) {
     // Remove the final newline char to avoid that StrSplit adds an empty string
@@ -1221,7 +1227,8 @@ std::string SortLines(absl::string_view s) {
     s.remove_suffix(1);
   }
   std::vector<std::string> lines = absl::StrSplit(s, "\n");
-  std::sort(lines.begin(), lines.end());
+  int lines_to_skip = skip_header ? 1 : 0;
+  std::sort(lines.begin() + lines_to_skip, lines.end());
   std::string sorted_lines = absl::StrJoin(lines, "\n");
   if (ends_with_nl) {
     sorted_lines.push_back('\n');

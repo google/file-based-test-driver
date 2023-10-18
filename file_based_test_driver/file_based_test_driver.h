@@ -292,7 +292,7 @@ int64_t CountTestCasesInFiles(absl::string_view filespec);
 
 // Firebolt Start
 // Returns a string with all the lines in s sorted lexicographically.
-std::string SortLines(absl::string_view s);
+std::string SortLines(absl::string_view s, bool skip_header);
 // Firebolt End
 
 // Internal functions. Exposed here for unit testing purposes only, do not use

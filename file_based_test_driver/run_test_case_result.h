@@ -81,6 +81,11 @@ class RunTestCaseResultBase {
   void set_compare_unsorted_result(bool compare_unsorted_result) {
     compare_unsorted_result_ = compare_unsorted_result;
   }
+
+  bool output_has_header() const { return output_has_header_; }
+  void set_output_has_header(bool output_has_header) {
+    output_has_header_ = output_has_header;
+  }
   // Firebolt End
 
  private:
@@ -102,6 +107,9 @@ class RunTestCaseResultBase {
   // result even if the order of the lines is different. Currently, this is
   // achieved by lexicographically sorting the lines before comparison.
   bool compare_unsorted_result_{false};
+  // If compare_unsorted_result_ is true, decide whether first line of the
+  // result is a header, and hence doesn't need to be sorted
+  bool output_has_header_{false};
   // Firebolt End
 };
 
