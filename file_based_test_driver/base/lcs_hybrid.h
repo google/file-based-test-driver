@@ -25,8 +25,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
-#include <cstdint>
+#include "absl/log/check.h"
 #include "file_based_test_driver/base/lcs.h"
 #include "file_based_test_driver/base/lcs_hunt.h"
 #include "file_based_test_driver/base/lcs_myers.h"
@@ -295,7 +294,7 @@ int LcsHybrid<ItemT>::RunHybrid(
     int b = Run(left + split_x, left_size - split_x, left_offset + split_x,
                 right + split_y, right_size - split_y, right_offset + split_y,
                 chunks);
-    FILE_BASED_TEST_DRIVER_DCHECK(a + b == lcs);
+    DCHECK(a + b == lcs);
   }
   return lcs;
 }

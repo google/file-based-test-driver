@@ -20,9 +20,9 @@
 #include <iostream>
 #include <unordered_map>
 
+#include "absl/log/log_streamer.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "file_based_test_driver/base/logging.h"
 
 namespace file_based_test_driver_base {
 
@@ -74,11 +74,10 @@ void StatusBuilder::ConditionallyLog(const absl::Status& result) const {
 
   absl::LogSeverity severity = rep_->log_severity;
 
-  file_based_test_driver_base::logging_internal::LogMessage log_message(
-      location_.file_name(), location_.line(), severity);
-  log_message.stream() << result;
+  absl::LogStreamer streamer(severity, location_.file_name(), location_.line());
+  streamer.stream() << result;
   if (rep_->should_log_stack_trace) {
-    log_message.stream() << "\n";
+    streamer.stream() << "\n";
   }
 }
 

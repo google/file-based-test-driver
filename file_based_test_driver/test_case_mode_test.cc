@@ -30,9 +30,9 @@ namespace file_based_test_driver {
 
 namespace {
 
-using ::file_based_test_driver::testing::IsOk;
-using ::file_based_test_driver::testing::IsOkAndHolds;
-using ::file_based_test_driver::testing::StatusIs;
+using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
+using ::absl_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;

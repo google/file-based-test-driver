@@ -18,8 +18,7 @@
 
 #include <algorithm>
 
-#include "file_based_test_driver/base/logging.h"
-#include <cstdint>
+#include "absl/log/check.h"
 #include "file_based_test_driver/base/lcs.h"
 #include "file_based_test_driver/base/lcs_hunt.h"
 
@@ -53,7 +52,7 @@ void LcsStats::DiffBounds(int* lower_bound, int* upper_bound) const {
   // Just transform the length of longest common subsequence to the difference.
   *upper_bound = left_size_ + right_size_ - lcs_lower * 2;
   *lower_bound = left_size_ + right_size_ - lcs_upper * 2;
-  FILE_BASED_TEST_DRIVER_CHECK_LE(*lower_bound, *upper_bound);
+  CHECK_LE(*lower_bound, *upper_bound);
 }
 
 static float sqr(float a) {

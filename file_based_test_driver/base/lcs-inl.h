@@ -26,8 +26,8 @@
 #include <utility>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/log/check.h"
 
 // This module implements the longest common subsequence problem for
 // a generic container type.  The algorithm implemented is as described by
@@ -217,9 +217,9 @@ template <class Container,
   }
   // Since all BackPointer sequences end at our toy (-2, -2) pair, we've
   // already emitted the last matched region.
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(last_match_left, -2);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(last_match_right, -2);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(match_length, 1);
+  CHECK_EQ(last_match_left, -2);
+  CHECK_EQ(last_match_right, -2);
+  CHECK_EQ(match_length, 1);
 
   // Cleanup - Unref the last references we hold.
   for (int i = 0; i < array.size(); ++i) {

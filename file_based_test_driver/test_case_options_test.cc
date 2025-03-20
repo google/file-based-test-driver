@@ -24,7 +24,7 @@
 
 namespace file_based_test_driver {
 
-using ::file_based_test_driver::testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::HasSubstr;
 

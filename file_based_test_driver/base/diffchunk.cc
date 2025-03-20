@@ -16,7 +16,7 @@
 
 #include "file_based_test_driver/base/diffchunk.h"
 
-#include "file_based_test_driver/base/logging.h"
+#include "absl/log/log.h"
 #include "absl/strings/string_view.h"
 
 namespace file_based_test_driver_base {
@@ -30,7 +30,7 @@ absl::string_view DiffChunk::opcode() const { return DiffChunk::opcode(type); }
 
 absl::string_view DiffChunk::opcode(ChunkType type) {
   if (type > kMaxChunkType) {
-    FILE_BASED_TEST_DRIVER_LOG(WARNING) << "Invalid chunk type. Ignoring.";
+    LOG(WARNING) << "Invalid chunk type. Ignoring.";
     return kChunkOpCodesStrings[kMaxChunkType];
   }
   return kChunkOpCodesStrings[type];

@@ -21,7 +21,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "file_based_test_driver/base/logging.h"
+#include "absl/log/check.h"
 
 namespace file_based_test_driver_base {
 namespace {
@@ -41,7 +41,7 @@ struct Blob {
 
   // no crash: NoDestructor indeed does not destruct (the moved-out Blob
   // temporaries do get destroyed though)
-  ~Blob() { FILE_BASED_TEST_DRIVER_CHECK(moved_out) << "~Blob"; }
+  ~Blob() { CHECK(moved_out) << "~Blob"; }
 
   int val;
   bool moved_out = false;

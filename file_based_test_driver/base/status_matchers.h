@@ -18,6 +18,8 @@
 #ifndef THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_MATCHERS_H_
 #define THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_MATCHERS_H_
 
+#include "absl/status/status_matchers.h"  // IWYU pragma: export
+
 #include "file_based_test_driver/base/status_matchers_oss.h"
 
 #endif  // THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_MATCHERS_H_

@@ -26,8 +26,8 @@
 #include <utility>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
-#include <cstdint>
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/base/diffchunk.h"
@@ -68,7 +68,7 @@ static void WrapLCS2(const LcsOptions& options,
 
   std::vector<Chunk> chunks;
   int res = lcs.Run(left_int, right_int, &chunks);
-  FILE_BASED_TEST_DRIVER_LOG_IF(WARNING, res < 0)
+  LOG_IF(WARNING, res < 0)
       << "LCS returned with error code " << res << ".\n"
       << "Rediff will only consider leading/trailing matches";
   for (size_t i = 0; i < chunks.size(); i++)
@@ -287,8 +287,8 @@ void ReDiff::DiffVectorsOfStringViews(
 }
 
 void ReDiff::Diff() {
-  FILE_BASED_TEST_DRIVER_DCHECK_EQ(static_cast<int>(left_list_.size()), left_size_);
-  FILE_BASED_TEST_DRIVER_DCHECK_EQ(static_cast<int>(right_list_.size()), right_size_);
+  DCHECK_EQ(static_cast<int>(left_list_.size()), left_size_);
+  DCHECK_EQ(static_cast<int>(right_list_.size()), right_size_);
   left_matches_.clear();
   right_matches_.clear();
   for (int i = 0; i < left_size_; ++i) {
@@ -795,7 +795,7 @@ void ReDiff::Chunkify(const std::vector<std::pair<MatchType, int> >& matches,
       else if (last_type == UNMATCHED)
         c.type = unmatched_type;
       else
-        FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Invalid chunk type: " << last_type;
+        LOG(FATAL) << "Invalid chunk type: " << last_type;
 
       // Start a new chunk here
       first_index = last_index = i;
@@ -875,7 +875,7 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
     } else if (right_candidates[j].first == UNCHANGED) {
       ++i;
     } else {
-      FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Internal error converting add/remove chunks to changes.";
+      LOG(FATAL) << "Internal error converting add/remove chunks to changes.";
     }
   }
 
@@ -912,7 +912,7 @@ void ReDiff::ConvertChunks(std::vector<DiffChunk>* left_chunks,
         ++map_it;
       } else if (map_it != chunks_to_add.end() &&
                  map_it->first < static_cast<int>(j)) {
-        FILE_BASED_TEST_DRIVER_LOG(FATAL) << "Internal error: missed chance to insert chunk at "
+        LOG(FATAL) << "Internal error: missed chance to insert chunk at "
                    << map_it->first << " (current index = " << j << ")";
       }
       ++j;
@@ -993,8 +993,8 @@ int ReDiff::index_of(int line_number, const std::vector<DiffChunk>& v) {
   // Lower bound just gives us a lower bound where line_number could be
   // inserted; we need to verify that the line number of this lower bound
   // is exactly equal to the value we expect.
-  FILE_BASED_TEST_DRIVER_CHECK(it != v.end()) << "index_of: entry not found.";
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(it->last_line, line_number) << "index_of: entry not found.";
+  CHECK(it != v.end()) << "index_of: entry not found.";
+  CHECK_EQ(it->last_line, line_number) << "index_of: entry not found.";
   // Use iterator subtraction to determine the index.
   return it - v.begin();
 }

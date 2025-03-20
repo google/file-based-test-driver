@@ -23,10 +23,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "file_based_test_driver/base/source_location.h"
 #include "file_based_test_driver/base/status_matchers_oss.h"
-#include "file_based_test_driver/base/statusor.h"
 
 namespace file_based_test_driver_base {
 namespace {
@@ -46,7 +46,7 @@ const SourceLocation kLoc = FILE_BASED_TEST_DRIVER_LOC;
 
 // Converts a StatusBuilder to a StatusOr<T>.
 template <typename T>
-StatusOr<T> ToStatusOr(const StatusBuilder& s) {
+absl::StatusOr<T> ToStatusOr(const StatusBuilder& s) {
   return s;
 }
 

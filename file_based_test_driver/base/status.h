@@ -20,8 +20,8 @@
 
 #include "absl/status/status.h"  // IWYU pragma: export
 
-// This is better than FILE_BASED_TEST_DRIVER_CHECK((val).ok()) because the embedded
-// error string gets printed by the FILE_BASED_TEST_DRIVER_CHECK_EQ.
-#define FILE_BASED_TEST_DRIVER_CHECK_OK(val) FILE_BASED_TEST_DRIVER_CHECK_EQ(::absl::OkStatus(), (val))
+// This is better than CHECK((val).ok()) because the embedded
+// error string gets printed by the CHECK_EQ.
+#define FILE_BASED_TEST_DRIVER_CHECK_OK(val) CHECK_EQ(::absl::OkStatus(), (val))
 
 #endif  // THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_H_

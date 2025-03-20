@@ -19,7 +19,7 @@
 #define THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_MATCHERS_OSS_H_
 
 // Testing utilities for working with ::absl::Status and
-// ::file_based_test_driver_base::StatusOr.
+// absl::StatusOr.
 //
 //
 // Defines the following utilities:
@@ -71,7 +71,7 @@
 //     using ::testing::Ne;
 //     using ::file_based_test_driver_base::testing::StatusIs;
 //     using ::testing::_;
-//     using ::file_based_test_driver_base::StatusOr;
+//     using absl::StatusOr;
 //     StatusOr<std::string> GetName(int id);
 //     ...
 //
@@ -119,208 +119,31 @@
 #include <string>
 #include <type_traits>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/base/source_location.h"
 #include "file_based_test_driver/base/status_builder.h"
-#include "file_based_test_driver/base/status_macros.h"
-#include "file_based_test_driver/base/statusor.h"
+
+// Macros for testing the results of functions that return absl::Status or
+// file_based_test_driver_base::StatusOr<T> (for any type T).
+#define FILE_BASED_TEST_DRIVER_EXPECT_OK(expression) \
+  EXPECT_THAT(expression, ::absl_testing::IsOk())
+#define FILE_BASED_TEST_DRIVER_ASSERT_OK(expression) \
+  ASSERT_THAT(expression, ::absl_testing::IsOk())
 
 namespace file_based_test_driver {
 namespace testing {
 namespace internal_status {
-
-inline const absl::Status& GetStatus(const absl::Status& status) {
-  return status;
-}
-
-template <typename T>
-inline const absl::Status& GetStatus(
-    const ::file_based_test_driver_base::StatusOr<T>& status) {
-  return status.status();
-}
-
-////////////////////////////////////////////////////////////
-// Implementation of IsOkAndHolds().
-
-// Monomorphic implementation of matcher IsOkAndHolds(m).  StatusOrType can be
-// either StatusOr<T> or a reference to it.
-template <typename StatusOrType>
-class IsOkAndHoldsMatcherImpl
-    : public ::testing::MatcherInterface<StatusOrType> {
- public:
-  typedef typename std::remove_reference<StatusOrType>::type::element_type
-      value_type;
-
-  template <typename InnerMatcher>
-  explicit IsOkAndHoldsMatcherImpl(InnerMatcher&& inner_matcher)
-      : inner_matcher_(::testing::SafeMatcherCast<const value_type&>(
-            std::forward<InnerMatcher>(inner_matcher))) {}
-
-  void DescribeTo(std::ostream* os) const override {
-    *os << "is OK and has a value that ";
-    inner_matcher_.DescribeTo(os);
-  }
-
-  void DescribeNegationTo(std::ostream* os) const override {
-    *os << "isn't OK or has a value that ";
-    inner_matcher_.DescribeNegationTo(os);
-  }
-
-  bool MatchAndExplain(
-      StatusOrType actual_value,
-      ::testing::MatchResultListener* result_listener) const override {
-    if (!actual_value.ok()) {
-      *result_listener << "which has status " << actual_value.status();
-      return false;
-    }
-
-    ::testing::StringMatchResultListener inner_listener;
-    const bool matches = inner_matcher_.MatchAndExplain(
-        actual_value.ValueOrDie(), &inner_listener);
-    const std::string inner_explanation = inner_listener.str();
-    if (inner_explanation != "") {
-      *result_listener << "which contains value "
-                       << ::testing::PrintToString(actual_value.ValueOrDie())
-                       << ", " << inner_explanation;
-    }
-    return matches;
-  }
-
- private:
-  const ::testing::Matcher<const value_type&> inner_matcher_;
-};
-
-// Implements IsOkAndHolds(m) as a polymorphic matcher.
-template <typename InnerMatcher>
-class IsOkAndHoldsMatcher {
- public:
-  explicit IsOkAndHoldsMatcher(InnerMatcher inner_matcher)
-      : inner_matcher_(std::move(inner_matcher)) {}
-
-  // Converts this polymorphic matcher to a monomorphic matcher of the
-  // given type.  StatusOrType can be either StatusOr<T> or a
-  // reference to StatusOr<T>.
-  template <typename StatusOrType>
-  operator ::testing::Matcher<StatusOrType>() const {  // NOLINT
-    return MakeMatcher(
-        new IsOkAndHoldsMatcherImpl<StatusOrType>(inner_matcher_));
-  }
-
- private:
-  const InnerMatcher inner_matcher_;
-};
-
-////////////////////////////////////////////////////////////
-// Implementation of StatusIs().
-
-// StatusIs() is a polymorphic matcher.  This class is the common
-// implementation of it shared by all types T where StatusIs() can be
-// used as a Matcher<T>.
-class StatusIsMatcherCommonImpl {
- public:
-  StatusIsMatcherCommonImpl(
-      ::testing::Matcher<absl::StatusCode> code_matcher,
-      ::testing::Matcher<const std::string&> message_matcher)
-      : code_matcher_(std::move(code_matcher)),
-        message_matcher_(std::move(message_matcher)) {}
-
-  void DescribeTo(std::ostream* os) const;
-
-  void DescribeNegationTo(std::ostream* os) const;
-
-  bool MatchAndExplain(const absl::Status& status,
-                       ::testing::MatchResultListener* result_listener) const;
-
- private:
-  const ::testing::Matcher<absl::StatusCode> code_matcher_;
-  const ::testing::Matcher<const std::string&> message_matcher_;
-};
-
-// Monomorphic implementation of matcher StatusIs() for a given type
-// T.  T can be Status, StatusOr<>, or a reference to either of them.
-template <typename T>
-class MonoStatusIsMatcherImpl : public ::testing::MatcherInterface<T> {
- public:
-  explicit MonoStatusIsMatcherImpl(StatusIsMatcherCommonImpl common_impl)
-      : common_impl_(std::move(common_impl)) {}
-
-  void DescribeTo(std::ostream* os) const override {
-    common_impl_.DescribeTo(os);
-  }
-
-  void DescribeNegationTo(std::ostream* os) const override {
-    common_impl_.DescribeNegationTo(os);
-  }
-
-  bool MatchAndExplain(
-      T actual_value,
-      ::testing::MatchResultListener* result_listener) const override {
-    return common_impl_.MatchAndExplain(GetStatus(actual_value),
-                                        result_listener);
-  }
-
- private:
-  StatusIsMatcherCommonImpl common_impl_;
-};
-
-// Implements StatusIs() as a polymorphic matcher.
-class StatusIsMatcher {
- public:
-  StatusIsMatcher(::testing::Matcher<absl::StatusCode> code_matcher,
-                  ::testing::Matcher<const std::string&> message_matcher)
-      : common_impl_(std::move(code_matcher), std::move(message_matcher)) {}
-
-  // Converts this polymorphic matcher to a monomorphic matcher of the given
-  // type.  T can be StatusOr<>, Status, or a reference to either of them.
-  template <typename T>
-  operator ::testing::Matcher<T>() const {  // NOLINT
-    return ::testing::MakeMatcher(new MonoStatusIsMatcherImpl<T>(common_impl_));
-  }
-
- private:
-  const StatusIsMatcherCommonImpl common_impl_;
-};
-
-// Monomorphic implementation of matcher IsOk() for a given type T.
-// T can be Status, StatusOr<>, or a reference to either of them.
-template <typename T>
-class MonoIsOkMatcherImpl : public ::testing::MatcherInterface<T> {
- public:
-  void DescribeTo(std::ostream* os) const override { *os << "is OK"; }
-  void DescribeNegationTo(std::ostream* os) const override {
-    *os << "is not OK";
-  }
-  bool MatchAndExplain(T actual_value,
-                       ::testing::MatchResultListener*) const override {
-    return GetStatus(actual_value).ok();
-  }
-};
-
-// Implements IsOk() as a polymorphic matcher.
-class IsOkMatcher {
- public:
-  template <typename T>
-  operator ::testing::Matcher<T>() const {  // NOLINT
-    return ::testing::MakeMatcher(new MonoIsOkMatcherImpl<T>());
-  }
-};
 
 void AddFatalFailure(
     absl::string_view expression,
     const ::file_based_test_driver_base::StatusBuilder& builder);
 
 }  // namespace internal_status
-
-// Macros for testing the results of functions that return absl::Status or
-// file_based_test_driver_base::StatusOr<T> (for any type T).
-#define FILE_BASED_TEST_DRIVER_EXPECT_OK(expression) \
-  EXPECT_THAT(expression, ::file_based_test_driver::testing::IsOk())
-#define FILE_BASED_TEST_DRIVER_ASSERT_OK(expression) \
-  ASSERT_THAT(expression, ::file_based_test_driver::testing::IsOk())
+}  // namespace testing
+}  // namespace file_based_test_driver
 
 // Executes an expression that returns a file_based_test_driver_base::StatusOr,
 // and assigns the contained variable to lhs if the error code is OK. If the
@@ -350,40 +173,5 @@ void AddFatalFailure(
       ::file_based_test_driver::testing::internal_status::AddFatalFailure( \
           #rexpr, _))
 
-// Returns a gMock matcher that matches a StatusOr<> whose status is
-// OK and whose value matches the inner matcher.
-template <typename InnerMatcher>
-internal_status::IsOkAndHoldsMatcher<typename std::decay<InnerMatcher>::type>
-IsOkAndHolds(InnerMatcher&& inner_matcher) {
-  return internal_status::IsOkAndHoldsMatcher<
-      typename std::decay<InnerMatcher>::type>(
-      std::forward<InnerMatcher>(inner_matcher));
-}
-
-// Returns a gMock matcher that matches a Status or StatusOr<> whose status code
-// matches code_matcher, and whose error message matches message_matcher.
-template <typename StatusCodeMatcher>
-internal_status::StatusIsMatcher StatusIs(
-    StatusCodeMatcher&& code_matcher,
-    ::testing::Matcher<const std::string&> message_matcher) {
-  return internal_status::StatusIsMatcher(
-      std::forward<StatusCodeMatcher>(code_matcher),
-      std::move(message_matcher));
-}
-
-// Returns a gMock matcher that matches a Status or StatusOr<> whose status code
-// matches code_matcher.
-template <typename StatusCodeMatcher>
-internal_status::StatusIsMatcher StatusIs(StatusCodeMatcher&& code_matcher) {
-  return StatusIs(std::forward<StatusCodeMatcher>(code_matcher), ::testing::_);
-}
-
-// Returns a gMock matcher that matches a Status or StatusOr<> which is OK.
-inline internal_status::IsOkMatcher IsOk() {
-  return internal_status::IsOkMatcher();
-}
-
-}  // namespace testing
-}  // namespace file_based_test_driver
 
 #endif  // THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_STATUS_MATCHERS_OSS_H_

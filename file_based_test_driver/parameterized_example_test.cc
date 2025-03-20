@@ -32,7 +32,6 @@
 
 #include "file_based_test_driver/base/path.h"
 #include "gtest/gtest.h"
-#include "absl/functional/bind_front.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
@@ -45,8 +44,11 @@
 
 namespace {
 
+std::string TestFilePath();
+
 // The test fixture
-class ExampleTest : public ::testing::Test {
+class ExampleTest
+    : public ::testing::TestWithParam<file_based_test_driver::TestCaseHandle> {
  public:
   //
   // OPTION NAMES
@@ -67,25 +69,32 @@ class ExampleTest : public ::testing::Test {
   static inline constexpr absl::string_view kIgnoreThisTestOption =
       "ignore_this_test";
 
-  ExampleTest() {
-    options_.RegisterBool(kDoubleResultOption, false);
-    options_.RegisterInt64(kAddAmountOption, 0);
-    // Notice, we strip trailing whitespace
-    options_.RegisterString(kResultPrefixOption, "The result is:");
-    options_.RegisterBool(kIgnoreThisTestOption, false);
+  static void SetUpTestSuite() {
+    options_ = new file_based_test_driver::TestCaseOptions();
+    options_->RegisterBool(kDoubleResultOption, false);
+    options_->RegisterInt64(kAddAmountOption, 0);
+    options_->RegisterString(kResultPrefixOption, "The result is:");
+    options_->RegisterBool(kIgnoreThisTestOption, false);
+
+    runner_ = file_based_test_driver::RunnerForFile(TestFilePath()).release();
+  }
+
+  static void TearDownTestSuite() {
+    delete options_;
+    delete runner_;
   }
 
   // Callback for running a single test case. This example sums a series of
   // comma separated integers, and applies some transformations on it based on
   // test options. Test inputs that start with an empty line are copied to the
   // output with an added *second* line saying "INSERTED SECOND LINE".
-  void RunExampleTestCase(
+  static void RunExampleTestCase(
       absl::string_view test_case,
       file_based_test_driver::RunTestCaseResult* test_result) {
     // Parse and strip off the test case's options.
     std::string test_case_without_options = std::string(test_case);
     const absl::Status options_status =
-        options_.ParseTestCaseOptions(&test_case_without_options);
+        options_->ParseTestCaseOptions(&test_case_without_options);
     if (!options_status.ok()) {
       // For bad test cases, prefer to return an error in the output instead
       // of crashing.
@@ -96,7 +105,7 @@ class ExampleTest : public ::testing::Test {
 
     // Ignore? Then return straight away. The test driver will copy the entire
     // test case verbatim.
-    if (options_.GetBool(kIgnoreThisTestOption)) {
+    if (options_->GetBool(kIgnoreThisTestOption)) {
       test_result->set_ignore_test_output(true);
       return;
     }
@@ -127,80 +136,39 @@ class ExampleTest : public ::testing::Test {
       }
       sum += number;
     }
-    if (options_.GetBool(kDoubleResultOption)) {
+    if (options_->GetBool(kDoubleResultOption)) {
       sum *= 2;
     }
-    sum += options_.GetInt64(kAddAmountOption);
+    sum += options_->GetInt64(kAddAmountOption);
     const std::string result_string =
-        absl::StrCat(options_.GetString(kResultPrefixOption), " ", sum);
+        absl::StrCat(options_->GetString(kResultPrefixOption), " ", sum);
 
     // Return the test output through <test_result>.
     test_result->AddTestOutput(result_string);
   }
 
  protected:
-  file_based_test_driver::TestCaseOptions options_;
+  static file_based_test_driver::TestCaseOptions* options_;
+  static file_based_test_driver::TestFileRunner* runner_;
 };
 
-inline std::string TestDir() {
+file_based_test_driver::TestCaseOptions* ExampleTest::options_ = nullptr;
+file_based_test_driver::TestFileRunner* ExampleTest::runner_ = nullptr;
+
+std::string TestFilePath() {
   return file_based_test_driver_base::JoinPath(
       getenv("TEST_SRCDIR"), getenv("TEST_WORKSPACE"),
-      "file_based_test_driver");
+      "file_based_test_driver", "example.test");
 }
 
-TEST_F(ExampleTest, RunExampleTest) {
-  const std::string filespec = file_based_test_driver_base::JoinPath(TestDir(), "example.test");
-  EXPECT_TRUE(file_based_test_driver::RunTestCasesFromFiles(
-      filespec, absl::bind_front(&ExampleTest::RunExampleTestCase, this)));
+TEST_P(ExampleTest, RunTest) {
+  runner_->RunTestCase(GetParam(), &ExampleTest::RunExampleTestCase);
 }
 
-TEST_F(ExampleTest, CountTestCasesInFiles) {
-  const std::string filespec = file_based_test_driver_base::JoinPath(TestDir(), "example.test");
-  EXPECT_EQ(file_based_test_driver::CountTestCasesInFiles(filespec), 27);
-}
-
-// This test shows how to bridge an existing stateful test to use
-// parameterized tests. It's not ideal, but the most likely path for
-// most tests initially to take advantage of this new capability. See below
-// for a more 'native' example.
-
-class LegacyParameterizedTest
-    : public ::testing::TestWithParam<file_based_test_driver::TestCaseHandle> {
-  // This is required because ExampleTest is not instainitable on it's own.
-  class LegacyExampleTest : public ExampleTest {
-    void TestBody() override {}
-  };
-
- public:
-  static void SetUpTestSuite() {
-    legacy_stateful_test_ = new LegacyExampleTest();
-    runner_ = file_based_test_driver::RunnerForFile(
-                  file_based_test_driver_base::JoinPath(TestDir(), "example.test"))
-                  .release();
-  }
-
-  static void TearDownTestSuite() {
-    delete legacy_stateful_test_;
-    delete runner_;
-  }
-  static file_based_test_driver::TestFileRunner* runner_;
-  static ExampleTest* legacy_stateful_test_;
-};
-
-file_based_test_driver::TestFileRunner* LegacyParameterizedTest::runner_ =
-    nullptr;
-ExampleTest* LegacyParameterizedTest::legacy_stateful_test_ = nullptr;
-
-TEST_P(LegacyParameterizedTest, RunTests) {
-  runner_->RunTestCase(GetParam(),
-                       absl::bind_front(&ExampleTest::RunExampleTestCase,
-                                        legacy_stateful_test_));
-}
-
-INSTANTIATE_TEST_SUITE_P(LegacyParameterizedTest, LegacyParameterizedTest,
-                         testing::ValuesIn(file_based_test_driver::TestsInFile(
-                             file_based_test_driver_base::JoinPath(TestDir(), "example.test"))),
-                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(
+    ExampleTest, ExampleTest,
+    testing::ValuesIn(file_based_test_driver::TestsInFile(TestFilePath())),
+    testing::PrintToStringParamName());
 
 }  // anonymous namespace
 

@@ -137,7 +137,7 @@ absl::Status TestCaseOutputs::AddOutputInternal(const TestCaseMode& test_mode,
   }
   if (!test_mode.empty()) {
     if (!possible_modes_.empty() &&
-        !file_based_test_driver_base::ContainsKey(possible_modes_, test_mode)) {
+        possible_modes_.find(test_mode) == possible_modes_.end()) {
       return ::file_based_test_driver_base::UnknownErrorBuilder().LogError()
              << "Cannot add output:\n"
              << output << "\nfor mode '" << test_mode << "' and result type '"
@@ -276,7 +276,7 @@ TestCaseMode::UnorderedSet TestCaseOutputs::GetTestModes() const {
 }
 
 bool TestCaseOutputs::HasAllModesResult() const {
-  return file_based_test_driver_base::ContainsKey(outputs_, TestCaseMode());
+  return outputs_.contains(TestCaseMode());
 }
 
 absl::Status TestCaseOutputs::BreakOutAllModesOutputs(
@@ -313,7 +313,7 @@ absl::Status TestCaseOutputs::GenerateAllModesOutputs(
 
   for (const auto& item : outputs_) {
     const TestCaseMode& test_mode = item.first;
-    FILE_BASED_TEST_DRIVER_RET_CHECK(file_based_test_driver_base::ContainsKey(test_modes, test_mode));
+    FILE_BASED_TEST_DRIVER_RET_CHECK(test_modes.find(test_mode) != test_modes.end());
     const ModeResults& mode_results = item.second;
 
     for (const auto& result_and_output : mode_results) {
@@ -356,7 +356,7 @@ absl::Status TestCaseOutputs::InsertOrUpdateOutputsForTestModes(
     const TestCaseOutputs& outputs,
     const TestCaseMode::UnorderedSet& test_modes) {
   for (const auto& mode_output_map : outputs.outputs_) {
-    if (file_based_test_driver_base::ContainsKey(test_modes, mode_output_map.first)) {
+    if (test_modes.contains(mode_output_map.first)) {
       file_based_test_driver_base::InsertOrUpdate(&outputs_, mode_output_map);
     }
   }
@@ -366,7 +366,7 @@ absl::Status TestCaseOutputs::InsertOrUpdateOutputsForTestModes(
 absl::Status TestCaseOutputs::DisableTestMode(
     const TestCaseMode& disabled_mode) {
   disabled_modes_.insert(disabled_mode);
-  if (file_based_test_driver_base::ContainsKey(outputs_, disabled_mode)) {
+  if (outputs_.contains(disabled_mode)) {
     FILE_BASED_TEST_DRIVER_RET_CHECK_EQ(size_t{1}, outputs_.erase(disabled_mode));
   }
   return absl::OkStatus();
@@ -374,7 +374,8 @@ absl::Status TestCaseOutputs::DisableTestMode(
 
 absl::Status TestCaseOutputs::ValidatePossibleModes() const {
   for (const auto& item : outputs_) {
-    if (!item.first.empty() && !file_based_test_driver_base::ContainsKey(possible_modes_, item.first)) {
+    if (!item.first.empty() &&
+        possible_modes_.find(item.first) == possible_modes_.end()) {
       return ::file_based_test_driver_base::UnknownErrorBuilder().LogError()
              << "Cannot set possible modes to '"
              << absl::StrJoin(possible_modes_, ",",
@@ -477,7 +478,7 @@ absl::Status TestCaseOutputs::MergeOutputs(
   // of the actual outputs has 'possible_modes_' set.
   if (!possible_modes.empty()) {
     for (const TestCaseMode& mode : test_modes) {
-      if (!file_based_test_driver_base::ContainsKey(possible_modes, mode)) {
+      if (possible_modes.find(mode) == possible_modes.end()) {
         disabled_modes.insert(mode);
       }
     }

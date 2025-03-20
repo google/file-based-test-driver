@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/map_util.h"
 
 namespace file_based_test_driver_base {

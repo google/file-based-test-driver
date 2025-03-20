@@ -29,10 +29,9 @@
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/source_location.h"
-#include "file_based_test_driver/base/statusor.h"
 
 namespace file_based_test_driver_base {
 
@@ -169,10 +168,10 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   operator absl::Status() &&;
 
   template <typename T>
-  operator StatusOr<T>() const&;  // NOLINT
+  operator absl::StatusOr<T>() const&;  // NOLINT
 
   template <typename T>
-  operator StatusOr<T>() &&;  // NOLINT
+  operator absl::StatusOr<T>() &&;  // NOLINT
 
   // Returns the source location used to create this builder.
   file_based_test_driver_base::SourceLocation source_location() const;
@@ -396,13 +395,14 @@ inline StatusBuilder::operator absl::Status() && {
 };
 
 template <typename T>
-inline StatusBuilder::operator StatusOr<T>() const& {
-  if (rep_ == nullptr) return StatusOr<T>(status_);
-  return StatusOr<T>(StatusBuilder(*this).CreateStatusAndConditionallyLog());
+inline StatusBuilder::operator absl::StatusOr<T>() const& {
+  if (rep_ == nullptr) return absl::StatusOr<T>(status_);
+  return absl::StatusOr<T>(
+      StatusBuilder(*this).CreateStatusAndConditionallyLog());
 }
 
 template <typename T>
-inline StatusBuilder::operator StatusOr<T>() && {
+inline StatusBuilder::operator absl::StatusOr<T>() && {
   if (rep_ == nullptr) return std::move(status_);
   return std::move(*this).CreateStatusAndConditionallyLog();
 }

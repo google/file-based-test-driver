@@ -24,10 +24,10 @@
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/base/source_location.h"
 #include "file_based_test_driver/base/status_builder.h"
-#include "file_based_test_driver/base/statusor.h"
 
 namespace {
 
@@ -53,18 +53,14 @@ file_based_test_driver_base::StatusBuilder ReturnErrorBuilder(
       FILE_BASED_TEST_DRIVER_LOC);
 }
 
-file_based_test_driver_base::StatusOr<int> ReturnStatusOrValue(int v) {
-  return v;
-}
+absl::StatusOr<int> ReturnStatusOrValue(int v) { return v; }
 
-file_based_test_driver_base::StatusOr<int> ReturnStatusOrError(
-    absl::string_view msg) {
+absl::StatusOr<int> ReturnStatusOrError(absl::string_view msg) {
   return absl::Status(absl::StatusCode::kUnknown, msg);
 }
 
-file_based_test_driver_base::StatusOr<std::unique_ptr<int>>
-ReturnStatusOrPtrValue(int v) {
-  return absl::make_unique<int>(v);
+absl::StatusOr<std::unique_ptr<int>> ReturnStatusOrPtrValue(int v) {
+  return std::make_unique<int>(v);
 }
 
 TEST(AssignOrReturn, Works) {

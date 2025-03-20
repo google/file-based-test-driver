@@ -27,7 +27,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/hash/hash.h"
-#include "file_based_test_driver/base/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
@@ -55,11 +55,11 @@ class TestCaseMode {
   template <class T>
   using UnorderedMap = absl::node_hash_map<TestCaseMode, T>;
 
-  static file_based_test_driver_base::StatusOr<TestCaseMode> Create(
+  static absl::StatusOr<TestCaseMode> Create(
       std::vector<std::string> mode_parts);
   // Create a description of a test, which is a space-separated list of
   // mode-parts.
-  static file_based_test_driver_base::StatusOr<TestCaseMode> Create(absl::string_view description);
+  static absl::StatusOr<TestCaseMode> Create(absl::string_view description);
 
   TestCaseMode() = default;
 
@@ -75,7 +75,7 @@ class TestCaseMode {
     return H::combine(std::move(h), test_case_mode.mode_parts_);
   }
 
-  static file_based_test_driver_base::StatusOr<std::vector<TestCaseMode>> ParseModes(
+  static absl::StatusOr<std::vector<TestCaseMode>> ParseModes(
       absl::string_view modes_string);
   static std::string CollapseModes(const TestCaseMode::Set& modes);
 

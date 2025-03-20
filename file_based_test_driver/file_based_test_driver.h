@@ -184,16 +184,20 @@
 #ifndef THIRD_PARTY_FILE_BASED_TEST_DRIVER_FILE_BASED_TEST_DRIVER_H_
 #define THIRD_PARTY_FILE_BASED_TEST_DRIVER_FILE_BASED_TEST_DRIVER_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include <cstdint>
+#include "absl/base/nullability.h"
 #include "absl/flags/declare.h"
 #include "absl/functional/function_ref.h"
-#include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/run_test_case_result.h"
 
@@ -210,6 +214,55 @@ ABSL_DECLARE_FLAG(std::string, file_based_test_driver_ignore_regex);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_individual_tests);
 
 namespace file_based_test_driver {
+
+// Diff information that can be used by client-code for analysis or rendering.
+struct ResultDiff {
+  // The unified diff being generated.
+  std::string unified_diff;
+  // The expected output string of the test case.
+  std::string expected;
+  // The actual output string of the test case.
+  std::string actual;
+  // Path of the test file relative to project root.
+  std::string file_path;
+  // The line number where test case is presented in the test file. Zero-based.
+  int start_line_number = -1;
+};
+
+class FileBasedTestDriverConfig {
+ public:
+  using OnResultDiffFoundCallback = std::function<void(const ResultDiff&)>;
+
+  FileBasedTestDriverConfig& set_alternations_enabled(bool v) {
+    alternations_enabled_ = v;
+    return *this;
+  }
+
+  FileBasedTestDriverConfig& set_on_result_diff_found_callback(
+      const OnResultDiffFoundCallback& cb) {
+    on_result_diff_found_ = cb;
+    return *this;
+  }
+
+  // [default enabled] When set, enables execution of alternations (see below).
+  // If disabled, alternations parsing is disabled. Useful if tests may include
+  // {{}} type constructs.
+  bool alternations_enabled() const { return alternations_enabled_; }
+  const OnResultDiffFoundCallback& on_result_diff_found() const {
+    return on_result_diff_found_;
+  }
+
+ private:
+  bool alternations_enabled_ = true;
+  // Custom callback when a diff is found. The callback is invoked exactly once
+  // for each failed test case.
+  // If alternations_enabled_ is `true` and any one alternation is causing a
+  // diff, the callback will be called exactly once and the diffing is performed
+  // against coalesced results.
+  // See also "ALTERNATION GROUP".
+  OnResultDiffFoundCallback on_result_diff_found_ = [](const ResultDiff&) {
+  };  // No-op by default.
+};
 
 // For every test file that matches <filespec>, this function:
 // - Reads the file.
@@ -234,7 +287,8 @@ ABSL_MUST_USE_RESULT bool RunTestCasesFromFiles(
     absl::string_view filespec,
     absl::FunctionRef<void(absl::string_view test_input,
                            RunTestCaseResult* test_case_result /*out*/)>
-        run_test_case);
+        run_test_case,
+    FileBasedTestDriverConfig config = {});
 
 // Writes <text> with a associated path 'file_path' to the INFO log.
 //
@@ -284,12 +338,356 @@ ABSL_MUST_USE_RESULT bool RunTestCasesWithModesFromFiles(
     absl::FunctionRef<
         void(absl::string_view test_input,
              RunTestCaseWithModesResult* test_case_result /* out */)>
-        run_test_case);
+        run_test_case,
+    FileBasedTestDriverConfig config = {});
 
 // Returns the number of individual test cases contained in 'filespec'. This is
 // the number of invocations that would be made to 'run_test_case' if
 // RunTestCaseFromFiles(filespec, run_test_case) were called.
 int64_t CountTestCasesInFiles(absl::string_view filespec);
+
+namespace internal {
+class RawTestFile;
+class RunTestCaseOutput;
+class RunTestCaseWithModesOutput;
+
+}  // namespace internal
+
+// A minimal representation of a single TestCase in a TestFile. This
+// object is _not_ reference type. It acts more like an index
+//
+// Rationale: This simplifies memory and object management with googletest
+// parameterization which requires such objects to be constructable before
+// the underlying test suite is constructible.
+class TestCaseHandle {
+ public:
+  // Note, this string is guaranteed to be compatible with restrictions on
+  // Googletest names and will contain only alphanumeric + underscore.
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const TestCaseHandle& handle) {
+    sink.Append(handle.name_);
+  }
+
+  // Needed for OSS (until we are able to upgrade to a more recent version of
+  // googletest).
+  friend void PrintTo(const TestCaseHandle& handle, std::ostream* os) {
+    *os << absl::StrCat(handle);  // Use AbslStringify implementation
+  }
+
+ private:
+  TestCaseHandle(int index, std::string name, bool skip_by_sharding)
+      : index_(index), name_(name), skip_by_sharding_(skip_by_sharding) {}
+
+  friend class TestFile;
+  friend class TestFileRunner;
+  friend class FileBasedTestDriverTestHelper;
+
+  // Index into TestFile::raw_test_file::test_cases
+  int index_;
+
+  // This is a GoogleTest compatible name for the test.
+  std::string name_;
+  bool skip_by_sharding_;
+};
+
+// A simple immutable representation of a test case input.
+//
+// Note, alternations are not supported yet.
+class TestCaseInput {
+ public:
+  // Name of the input file (as a relative path from the workspace root).
+  absl::string_view filename() const { return filename_; }
+
+  // The index of this test within it's file.
+  int test_index() const { return test_index_; }
+
+  // The line number of the start of the test (including comments).
+  // This is zero for the first test, and corresponds to the first line
+  // after the test-case separator ('==') for subsequent test cases.
+  int start_line_number() const { return start_line_number_; }
+
+  // Test case input text, excluding comments.
+  absl::string_view text() const { return text_; }
+
+ private:
+  friend class TestFile;
+  TestCaseInput(std::string filename, int test_index, int start_line_number,
+                std::string text)
+      : filename_(filename),
+        test_index_(test_index),
+        start_line_number_(start_line_number),
+        text_(text) {}
+  const std::string filename_;
+  const int test_index_;
+  const int start_line_number_;
+  const std::string text_;
+};
+
+class TestFileRunner;
+
+// A representation of test sharding that should be used in
+// TestFile::ShardedTests.
+//
+// This will generally be derived from environment variables.
+class ShardingEnvironment {
+ public:
+  static ShardingEnvironment FromEnv();
+
+  bool is_sharded() const { return is_sharded_; }
+
+  // If unsharded, returns 0;
+  int this_shard() const { return this_shard_; }
+
+  // If unsharded, returns 1.
+  int total_shards() const { return total_shards_; }
+
+ private:
+  friend class FileBasedTestDriverTestHelper;
+  bool is_sharded_ = false;
+  int this_shard_ = 0;
+  int total_shards_ = 1;
+};
+
+// Immutable representation of a File Based Test Driver input (.test) file.
+//
+// See TestFileRunner for usage.
+class TestFile {
+ public:
+  TestFile(const TestFile& v);
+  TestFile& operator=(const TestFile& v);
+  TestFile(TestFile&& v);
+  TestFile& operator=(TestFile&& v);
+
+  ~TestFile();
+
+  // Construct a TestFile from a file path by reading the file
+  // and parsing it.
+  static absl::StatusOr<TestFile> MakeFromFilepath(absl::string_view file_path);
+
+  // Returns handles to the test in this file. Note, this
+  // act more like indexes and do not contain references
+  // to this object, and can freely be used on any copy of this
+  // object.
+  std::vector<TestCaseHandle> Tests() const;
+
+  // Creates a vector of tests suitable for use with googletest parameterized
+  // tests with sharding enabled.
+  //
+  //
+  // `has_side_effects_fn` can be provided to indicate if a given test
+  // has side_effects, in which case, it will be run on every shard.
+  //
+  // This is necessary, for instance, if the tests modifies default options.
+  //
+  // Alternations are not supported yet.
+  absl::StatusOr<std::vector<TestCaseHandle>> ShardedTests(
+      absl::FunctionRef<bool(const TestCaseInput&)> has_side_effects_fn,
+      ShardingEnvironment sharding_environment =
+          ShardingEnvironment::FromEnv());
+
+  std::unique_ptr<TestFileRunner> MakeRunner(
+      FileBasedTestDriverConfig config = {}) const;
+
+  const std::string& filename() const;
+  bool ContainsAlternations() const;
+
+ private:
+  TestFile() = default;
+  friend class TestFileRunner;
+  const internal::RawTestFile& raw_test_file() const { return *raw_test_file_; }
+  std::unique_ptr<internal::RawTestFile> raw_test_file_;
+};
+
+// A stateful wrapper around a TestFile that can be used to actually execute
+// tests. Uses RAII to initialize on construction and perform cleanup on
+// destruction such as printing the updated golden file.
+//
+// Holds its own copy of TestFile to simplify object/memory management during
+// googletest initialization.
+//
+// Usage:
+//  {
+//    FILE_BASED_TEST_DRIVER_ASSIGN_OR_RETURN(TestFile file, TestFile::MakeFromFilepath(...));
+//    std::unique_ptr<TestFileRunner> runner = file.MakeRunner();
+//    for (const TestCaseHandle& handle : runner->test_file().Tests()) {
+//      runner.RunTestCase(handle,
+//                         [](absl::string_view test_input,
+//                            RunTestCaseResult* result) {
+//                                result->RecordOutput(MyCode(test_input));
+//                            });
+//    }
+//  }
+//
+//
+// PARAMETERIZED TESTS
+//
+// googletest has a builtin api for running parameterized tests. The TestFile
+// API supports this in the follow way (see also parameterized_example_test.cc):
+//
+//   class ExampleTest
+//     : public ::testing::TestWithParam<file_based_test_driver::TestCaseHandle>
+//     {
+//
+//     static void SetUpTestSuite() {
+//       runner_ =
+//       file_based_test_driver::RunnerForFile(TestFilePath()).release();
+//     }
+//     static void TearDownTestSuite() {
+//       delete runner_;
+//     }
+//   };
+//   file_based_test_driver::TestFileRunner* ExampleTest::runner_ = nullptr;
+//
+//
+//   void Run(absl::string_view test_case,
+//            file_based_test_driver::RunTestCaseResult* test_result) {...}
+//
+//   TEST_P(ExampleTest, RunTest) {
+//     runner_->RunTestCase(GetParam(), &Run);
+//   }
+//
+//   INSTANTIATE_TEST_SUITE_P(
+//       ExampleTest, ExampleTest,
+//       testing::ValuesIn(file_based_test_driver::TestsInFile(TestFilePath())),
+//       testing::PrintToStringParamName());
+//
+// PARAMETERIZED TESTS WITH ALTERNATIONS
+// Currently, all alternations are run as one googletest TestCase.
+//
+// BENEFITS OF PARAMETERIZATION
+// A major upside to parameterized tests is that testing::Test::RecordProperty
+// will correctly attach to individual test cases, rather than being global
+// across the whole test (potentially clobbering each other).
+//
+// SHARDED PARAMETERIZED TESTS
+//
+// Supporting test sharding with parameterization is a little more complicated
+// because tests are generally understood to be order dependent (see below)
+// and likely to have side effects (such as options processing), a little more
+// setup is required. In order to ensure correct computation, test cases with
+// side effects need to be identified (including those setting default options).
+// This is done via a callback when the test vector is constructed:
+//
+//   bool HasSideEffects(const TestCaseInput& input) {
+//     return absl::StartsWith(input.text(), "[default");
+//   }
+//
+//   INSTANTIATE_TEST_SUITE_P(
+//       ExampleTest, ExampleTest,
+//       testing::ValuesIn(file_based_test_driver::ShardedTestsInFile(
+//           TestFilePath(), &HasSideEffects)),
+//       testing::PrintToStringParamName());
+//
+// Tests with side effects are run on every shard.
+//
+// SHARDED PARAMETERIZED TESTS _WITH ALTERNATIONS_ ARE NOT SUPPORTED
+//
+// Sharded parameterized tests that contain alternations are not yet supported.
+//
+// ORDER DEPENDENT TESTS
+//
+// TestFileRunner requires tests to be run in file order (today) in order
+// to produce the correct output for
+//   --file_based_test_driver_generate_test_output
+//
+// Even if this is disabled, it's likely that tests are themselves order
+// dependent due to options processing, or just being stateful.
+//
+// DETAILS ON HOW SHARDING WORKS
+//
+// Note, this refers to the current implemention. The details may change.
+//
+// Background on Googletest:
+//
+// When a test binary starts up, Googletest first determines the full list of
+// tests it should run and ensures the names are valid and unique.
+//
+// Then Googletest examines environment variables to determine the requested
+// sharding - the total number of shards and the shard assigned to this binary
+// execution.
+//
+// Then it proceeds round robin through the list of tests in order, running
+// every nth test starting from it's assigned shard.
+//
+// How file_based_test_driver sharding works.
+//
+// file_based_test_driver has to assume some side effects for a few reasons
+// described above. Today it needs to ensure every test is 'run' (according to
+// Googletest).
+//
+// To accomplish this, every TestCase in each file is repeated N times where
+// N is the number of shards. This effectively undoes the round-robin that
+// Googletest will issue while sharding.
+//
+// Then Googletest makes it's own determation of whether a test should actually
+// be run. A test will be run if it has side effects (in which case it should)
+// be run on all shards) or if Googletest _would have_ run it on this shard.
+//
+// This mostly should be invisible to the user, however the shards that
+// file_based_test_driver skipped will show up with weird names in the list
+// of 'skipped' tests in sponge.
+//
+class TestFileRunner {
+ public:
+  // Runs all tests associated with the given test_case.
+  // `test_case_runner` will be invoked once per alternation.
+  bool RunTestCase(
+      TestCaseHandle test_case,
+      absl::FunctionRef<void(absl::string_view test_input,
+                             RunTestCaseResult* test_case_result /*out*/)>
+          test_case_runner);
+
+  // Runs all tests associated with the given test_case.
+  bool RunTestCaseWithModes(
+      TestCaseHandle test_case,
+      absl::FunctionRef<
+          void(absl::string_view test_input,
+               RunTestCaseWithModesResult* test_case_result /* out */)>
+          test_case_runner);
+
+  // Return the underlying file object.
+  const TestFile& test_file() const { return file_; }
+
+  ~TestFileRunner();
+
+ private:
+  explicit TestFileRunner(TestFile file, FileBasedTestDriverConfig config);
+
+  friend class TestFile;
+
+  const internal::RawTestFile& raw_test_file() const;
+
+  // We sidestep memory issues by just making a full copy.
+  const TestFile file_;
+
+  absl::StatusOr<absl::Nonnull<internal::RunTestCaseOutput*>> all_output();
+  absl::StatusOr<absl::Nonnull<internal::RunTestCaseWithModesOutput*>>
+  all_output_with_modes();
+
+  // Exactly one of these will be set. Use unique_ptr to avoid making these
+  // classes public.
+  std::unique_ptr<internal::RunTestCaseOutput> all_output_;
+  std::unique_ptr<internal::RunTestCaseWithModesOutput> all_output_with_modes_;
+  const FileBasedTestDriverConfig config_;
+};
+
+// Note, this will die on errors on MakeFromFilePath.
+inline std::vector<TestCaseHandle> TestsInFile(absl::string_view file_path) {
+  return TestFile::MakeFromFilepath(file_path)->Tests();
+}
+
+inline std::vector<TestCaseHandle> ShardedTestsInFile(
+    absl::string_view file_path,
+    absl::FunctionRef<bool(const TestCaseInput&)> has_side_effects_fn) {
+  return *TestFile::MakeFromFilepath(file_path)->ShardedTests(
+      has_side_effects_fn);
+}
+
+// Note, this will die on errors on MakeFromFilePath.
+inline std::unique_ptr<TestFileRunner> RunnerForFile(
+    absl::string_view file_path) {
+  return TestFile::MakeFromFilepath(file_path)->MakeRunner();
+}
 
 // Internal functions. Exposed here for unit testing purposes only, do not use
 // directly.
@@ -356,10 +754,17 @@ std::string BuildTestFileEntry(
 // such as "a{{b|c}}{{d|e}}" has alternation value combinations "b,d", "b,e",
 // "c,d", and "c,e". This corresponds to expanded values "abd", "abe", "acd",
 // "ace". The returned vector for this string would contain ("b,d", "abd"),
-// ("b,e", "abe"), and so on.
+// ("b,e", "abe"), and so on.  Inside alternations, \| can be used for a
+// literal | character.  Other \ escape sequences pass through literally.
+//
+// Singleton alternations (e.g. {{a}}) are reported in singleton_alternations.
+// It is useful when using the flag for disallowing such alternations,
+// FLAGS_file_based_test_driver_disallow_singleton_alternation_groups.
 void BreakStringIntoAlternations(
-    absl::string_view input, std::vector<std::pair<std::string, std::string>>*
-                                 alternation_values_and_expanded_inputs);
+    absl::string_view input, const FileBasedTestDriverConfig& config,
+    std::vector<std::pair<std::string, std::string>>*
+        alternation_values_and_expanded_inputs,
+    std::vector<std::string>& singleton_alternations);
 
 }  // namespace internal
 }  // namespace file_based_test_driver

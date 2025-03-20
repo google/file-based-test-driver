@@ -42,13 +42,17 @@
 #include "file_based_test_driver/test_case_mode.h"
 #include "file_based_test_driver/test_case_options.h"
 #include "file_based_test_driver/base/map_util.h"
+
 namespace {
 
 using file_based_test_driver::RunTestCaseWithModesResult;
 using file_based_test_driver::TestCaseMode;
 
+std::string TestFilePath();
+
 // The test fixture
-class ExampleTestWithModes : public ::testing::Test {
+class ExampleTestWithModes
+    : public ::testing::TestWithParam<file_based_test_driver::TestCaseHandle> {
  public:
   //
   // OPTION NAMES
@@ -68,25 +72,33 @@ class ExampleTestWithModes : public ::testing::Test {
   static inline constexpr absl::string_view kModeBResultOption =
       "mode_b_results";
 
-  ExampleTestWithModes() {
-    options_.RegisterString(kResultPrefixOption, "The result is: ");
-    options_.RegisterBool(kIgnoreThisTestOption, false);
-    options_.RegisterString(kModeAResultOption, "");
-    options_.RegisterString(kModeBResultOption, "");
+  static void SetUpTestSuite() {
+    options_ = new file_based_test_driver::TestCaseOptions();
+    options_->RegisterString(kResultPrefixOption, "The result is: ");
+    options_->RegisterBool(kIgnoreThisTestOption, false);
+    options_->RegisterString(kModeAResultOption, "");
+    options_->RegisterString(kModeBResultOption, "");
+
+    runner_ = file_based_test_driver::RunnerForFile(TestFilePath()).release();
+  }
+
+  static void TearDownTestSuite() {
+    delete options_;
+    delete runner_;
   }
 
   // Callback for running a single test case. This example sums a series of
   // comma separated integers, and applies some transformations on it based on
   // test options. Test inputs that start with an empty line are copied to the
   // output with an added *second* line saying "INSERTED SECOND LINE".
-  void RunExampleTestCase(const TestCaseMode& test_mode,
-                          absl::string_view test_mode_option_name,
-                          absl::string_view test_case,
-                          RunTestCaseWithModesResult* test_result) {
+  static void RunExampleTestCase(const TestCaseMode& test_mode,
+                                 absl::string_view test_mode_option_name,
+                                 absl::string_view test_case,
+                                 RunTestCaseWithModesResult* test_result) {
     // Parse and strip off the test case's options.
     std::string test_case_without_options = std::string(test_case);
     const absl::Status options_status =
-        options_.ParseTestCaseOptions(&test_case_without_options);
+        options_->ParseTestCaseOptions(&test_case_without_options);
     if (!options_status.ok()) {
       // For bad test cases, prefer to return an error in the output instead
       // of crashing.
@@ -99,7 +111,7 @@ class ExampleTestWithModes : public ::testing::Test {
 
     // Ignore? Then return straight away. The test driver will copy the entire
     // test case verbatim.
-    if (options_.GetBool(kIgnoreThisTestOption)) {
+    if (options_->GetBool(kIgnoreThisTestOption)) {
       test_result->set_ignore_test_output(true);
       return;
     }
@@ -133,7 +145,7 @@ class ExampleTestWithModes : public ::testing::Test {
       sum += number;
     }
 
-    const std::string mode_result = options_.GetString(test_mode_option_name);
+    const std::string mode_result = options_->GetString(test_mode_option_name);
 
     // Return the outputs specified in the options.
     const absl::node_hash_map<std::string, std::string> mode_results =
@@ -146,19 +158,15 @@ class ExampleTestWithModes : public ::testing::Test {
     // options.
     if (!mode_results.contains("")) {
       const std::string result_string =
-          absl::StrCat(options_.GetString(kResultPrefixOption), sum);
+          absl::StrCat(options_->GetString(kResultPrefixOption), sum);
       CHECK_OK(test_result->mutable_test_case_outputs()->RecordOutput(
                    TestCaseMode(test_mode), "", result_string));
     }
   }
 
- protected:
-  file_based_test_driver::TestCaseOptions options_;
-  std::string test_dir_;
-
  private:
   // Extracts the outputs from the option.
-  absl::node_hash_map<std::string, std::string> ExtractOutputs(
+  static absl::node_hash_map<std::string, std::string> ExtractOutputs(
       const std::string& result_str) {
     absl::node_hash_map<std::string, std::string> result_type_to_output_map;
     const std::vector<std::string> result_list =
@@ -175,91 +183,44 @@ class ExampleTestWithModes : public ::testing::Test {
     }
     return result_type_to_output_map;
   }
+
+ protected:
+  static file_based_test_driver::TestCaseOptions* options_;
+  static file_based_test_driver::TestFileRunner* runner_;
 };
 
-inline std::string TestDir() {
+file_based_test_driver::TestCaseOptions* ExampleTestWithModes::options_ =
+    nullptr;
+file_based_test_driver::TestFileRunner* ExampleTestWithModes::runner_ = nullptr;
+
+std::string TestFilePath() {
   return file_based_test_driver_base::JoinPath(
       getenv("TEST_SRCDIR"), getenv("TEST_WORKSPACE"),
-      "file_based_test_driver");
+      "file_based_test_driver", "example_with_modes.test");
 }
 
 // Run test cases from example_with_modes.test.
-TEST_F(ExampleTestWithModes, RunExampleTestModeA) {
-  const std::string filespec =
-      file_based_test_driver_base::JoinPath(TestDir(), "example_with_modes.test");
+TEST_P(ExampleTestWithModes, RunExampleTestModeA) {
   FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
       TestCaseMode mode,
       TestCaseMode::Create(std::vector<std::string>({"MODE", "A"})));
-  EXPECT_TRUE(RunTestCasesWithModesFromFiles(
-      filespec, absl::bind_front(&ExampleTestWithModes::RunExampleTestCase,
-                                 this, mode, kModeAResultOption)));
+  runner_->RunTestCaseWithModes(
+      GetParam(), absl::bind_front(&ExampleTestWithModes::RunExampleTestCase,
+                                   mode, kModeAResultOption));
 }
 
-TEST_F(ExampleTestWithModes, RunExampleTestModeB) {
-  const std::string filespec =
-      file_based_test_driver_base::JoinPath(TestDir(), "example_with_modes.test");
+TEST_P(ExampleTestWithModes, RunExampleTestModeB) {
   FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
       TestCaseMode mode,
       TestCaseMode::Create(std::vector<std::string>({"MODE", "B"})));
-  EXPECT_TRUE(RunTestCasesWithModesFromFiles(
-      filespec, absl::bind_front(&ExampleTestWithModes::RunExampleTestCase,
-                                 this, mode, kModeBResultOption)));
-}
-
-TEST_F(ExampleTestWithModes, CountTestCasesInFiles) {
-  const std::string filespec =
-      file_based_test_driver_base::JoinPath(TestDir(), "example_with_modes.test");
-  EXPECT_EQ(file_based_test_driver::CountTestCasesInFiles(filespec), 15);
-}
-
-// This test shows how to bridge an existing stateful test to use
-// parameterized tests. It's not ideal, but the most likely path for
-// most tests initially to take advantage of this new capability. See below
-// for a more 'native' example.
-
-class LegacyParameterizedTest
-    : public ::testing::TestWithParam<file_based_test_driver::TestCaseHandle> {
-  // This is required because ExampleTestWithModes is not instainitable on it's
-  // own.
-  class LegacyExampleTest : public ExampleTestWithModes {
-    void TestBody() override {}
-  };
-
- public:
-  static void SetUpTestSuite() {
-    legacy_stateful_test_ = new LegacyExampleTest();
-    runner_ = file_based_test_driver::RunnerForFile(
-                  file_based_test_driver_base::JoinPath(TestDir(), "example_with_modes.test"))
-                  .release();
-  }
-
-  static void TearDownTestSuite() {
-    delete legacy_stateful_test_;
-    delete runner_;
-  }
-  static file_based_test_driver::TestFileRunner* runner_;
-  static ExampleTestWithModes* legacy_stateful_test_;
-};
-
-file_based_test_driver::TestFileRunner* LegacyParameterizedTest::runner_ =
-    nullptr;
-ExampleTestWithModes* LegacyParameterizedTest::legacy_stateful_test_ = nullptr;
-
-TEST_P(LegacyParameterizedTest, RunTests) {
-  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
-      TestCaseMode mode,
-      TestCaseMode::Create(std::vector<std::string>({"MODE", "A"})));
-
   runner_->RunTestCaseWithModes(
       GetParam(), absl::bind_front(&ExampleTestWithModes::RunExampleTestCase,
-                                   legacy_stateful_test_, mode,
-                                   ExampleTestWithModes::kModeAResultOption));
+                                   mode, kModeBResultOption));
 }
 
-INSTANTIATE_TEST_SUITE_P(LegacyParameterizedTest, LegacyParameterizedTest,
-                         testing::ValuesIn(file_based_test_driver::TestsInFile(
-                             file_based_test_driver_base::JoinPath(TestDir(),
-                                            "example_with_modes.test"))),
-                         testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(
+    ExampleTestWithModes, ExampleTestWithModes,
+    testing::ValuesIn(file_based_test_driver::TestsInFile(TestFilePath())),
+    testing::PrintToStringParamName());
 
 }  // anonymous namespace

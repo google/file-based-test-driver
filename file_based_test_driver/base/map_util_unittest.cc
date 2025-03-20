@@ -29,9 +29,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
-#include "file_based_test_driver/base/logging.h"
-
 // All of the templates for the tests are defined here.
 // This file is critical to understand what is tested.
 #include "file_based_test_driver/base/map_util_test.h"
@@ -77,7 +77,7 @@ TEST(MapUtil, ReverseMapWithoutDups) {
   forward["3"] = 3;
   forward["4"] = 4;
   forward["5"] = 5;
-  std::map<int, std::string> reverse;
+  absl::btree_map<int, std::string> reverse;
   EXPECT_TRUE(ReverseMap(forward, &reverse));
   EXPECT_THAT(reverse, ElementsAre(
       Pair(1, "1"),
@@ -96,7 +96,7 @@ TEST(MapUtil, ReverseMapWithDups) {
   forward["5"] = 5;
   forward["6"] = 1;
   forward["7"] = 2;
-  std::map<int, std::string> reverse;
+  absl::btree_map<int, std::string> reverse;
   EXPECT_FALSE(ReverseMap(forward, &reverse));
   // There are 5 distinct values in forward.
   EXPECT_THAT(reverse, ElementsAre(
@@ -114,8 +114,8 @@ TEST(MapUtil, SingleArgumentReverseMapWithoutDups) {
   forward["3"] = 3;
   forward["4"] = 4;
   forward["5"] = 5;
-  const std::map<int, std::string> reverse =
-      ReverseMap<std::map<int, std::string>>(forward);
+  const absl::btree_map<int, std::string> reverse =
+      ReverseMap<absl::btree_map<int, std::string>>(forward);
   EXPECT_THAT(reverse, ElementsAre(
       Pair(1, "1"),
       Pair(2, "2"),
@@ -133,8 +133,8 @@ TEST(MapUtil, SingleArgumentReverseMapWithDups) {
   forward["5"] = 5;
   forward["6"] = 1;
   forward["7"] = 2;
-  const std::map<int, std::string> reverse =
-      ReverseMap<std::map<int, std::string>>(forward);
+  const absl::btree_map<int, std::string> reverse =
+      ReverseMap<absl::btree_map<int, std::string>>(forward);
   // There are 5 distinct values in forward.
   EXPECT_THAT(reverse, ElementsAre(
       Pair(1, "6"),
@@ -439,7 +439,7 @@ INSTANTIATE_TYPED_TEST_SUITE_P(MapUtilTest, AssociativeEraseIfTest,
                                AssociateEraseMapTypes);
 
 TEST(MapUtil, InsertKeyOrDie_SmartPtrTest) {
-  absl::node_hash_map<int, std::unique_ptr<int>> m;
+  absl::flat_hash_map<int, std::unique_ptr<int>> m;
   m[1].reset(new int(10));
   m[2].reset(new int(20));
 

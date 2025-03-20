@@ -24,7 +24,6 @@
 #include <variant>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"

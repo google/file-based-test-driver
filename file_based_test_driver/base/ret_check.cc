@@ -19,8 +19,6 @@
 
 #include <string>
 
-#include "absl/status/status.h"
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/source_location.h"
 #include "file_based_test_driver/base/status_builder.h"
 

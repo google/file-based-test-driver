@@ -24,11 +24,11 @@
 #include <iostream>
 #include <vector>
 
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/path.h"
 
 namespace file_based_test_driver::internal {
@@ -129,8 +129,8 @@ inline absl::Status SetContents(absl::string_view filename,
 // The path in blaze where we expect to find inputs like `.test` files.
 inline std::string TestSrcRootDir() {
   return file_based_test_driver_base::JoinPath(
-      getenv("TEST_SRCDIR"),
-      "com_google_file_based_test_driver/file_based_test_driver");
+      getenv("TEST_SRCDIR"), getenv("TEST_WORKSPACE"),
+      "file_based_test_driver");
 }
 
 // The path in bazel where we expect to find inputs like `.test` files.
@@ -145,16 +145,16 @@ class RegisteredTempFile {
     std::string filename_str;
     struct stat file_stat;
     if (!NullFreeString(filename_, &filename_str).ok()) {
-      FILE_BASED_TEST_DRIVER_LOG(FATAL)
+      LOG(FATAL)
           << "RegisteredTempFile: Illegal filename contains null characters: "
           << filename_;
     }
     if (stat(filename_str.c_str(), &file_stat) != 0) {
-      // FILE_BASED_TEST_DRIVER_LOG(FATAL) << "RegisteredTempFile: File already exists: " <<
+      // LOG(FATAL) << "RegisteredTempFile: File already exists: " <<
       // filename_str;
     }
     if (absl::Status s = SetContents(filename_str, contents); !s.ok()) {
-      FILE_BASED_TEST_DRIVER_LOG(FATAL) << "RegisteredTempFile: Unable to set contents: " << s;
+      LOG(FATAL) << "RegisteredTempFile: Unable to set contents: " << s;
     }
     should_delete_ = true;
   }

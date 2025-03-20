@@ -19,7 +19,7 @@
 #define THIRD_PARTY_FILE_BASED_TEST_DRIVER_BASE_RET_CHECK_H_
 
 // Macros for non-fatal assertions.  The `FILE_BASED_TEST_DRIVER_RET_CHECK`
-// family of macros mirrors the `FILE_BASED_TEST_DRIVER_CHECK` family from "base/logging.h", but
+// family of macros mirrors the `CHECK` family from "base/logging.h", but
 // instead of aborting the process on failure, these return a absl::Status with
 // code `absl::StatusCode::kInternal` from the current method.
 //
@@ -44,7 +44,6 @@
 #include <string>
 
 #include "absl/status/status.h"
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/source_location.h"
 #include "file_based_test_driver/base/status_builder.h"
 #include "file_based_test_driver/base/status_macros.h"
@@ -104,21 +103,9 @@ inline StatusBuilder RetCheckImpl(const absl::Status& status,
       ::file_based_test_driver_base::internal_ret_check::RetCheckImpl( \
           (status), #status, FILE_BASED_TEST_DRIVER_LOC))
 
-#if defined(STATIC_ANALYSIS)
 #define FILE_BASED_TEST_DRIVER_STATUS_MACROS_INTERNAL_RET_CHECK_OP(name, op, \
                                                                    lhs, rhs) \
   FILE_BASED_TEST_DRIVER_RET_CHECK((lhs)op(rhs))
-#else
-#define FILE_BASED_TEST_DRIVER_STATUS_MACROS_INTERNAL_RET_CHECK_OP(name, op, \
-                                                                   lhs, rhs) \
-  while (std::string* _result =                                              \
-             file_based_test_driver_base::Check_##name##Impl(                \
-                 ::file_based_test_driver_base::GetReferenceableValue(lhs),  \
-                 ::file_based_test_driver_base::GetReferenceableValue(rhs),  \
-                 #lhs " " #op " " #rhs))                                     \
-  return ::file_based_test_driver_base::internal_ret_check::                 \
-      RetCheckFailSlowPath(FILE_BASED_TEST_DRIVER_LOC, _result)
-#endif
 
 #define FILE_BASED_TEST_DRIVER_RET_CHECK_EQ(lhs, rhs) \
   FILE_BASED_TEST_DRIVER_STATUS_MACROS_INTERNAL_RET_CHECK_OP(EQ, ==, lhs, rhs)

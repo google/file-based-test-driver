@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "absl/base/casts.h"
-#include <cstdint>
 #include "absl/strings/string_view.h"
 #include "file_based_test_driver/base/lcs_hybrid.h"
 
@@ -53,8 +52,8 @@ int Lcs::Run(absl::string_view left, absl::string_view right,
   // Note: C++ strings may contain null characters.
   opt->set_max_keys(std::numeric_limits<uint8_t>::max() + 1);
   return hybrid.Run(absl::bit_cast<const uint8_t*>(left.data()), left.size(), 0,
-                    absl::bit_cast<const uint8_t*>(right.data()), right.size(), 0,
-                    chunks);
+                    absl::bit_cast<const uint8_t*>(right.data()), right.size(),
+                    0, chunks);
 }
 
 }  // namespace file_based_test_driver_base

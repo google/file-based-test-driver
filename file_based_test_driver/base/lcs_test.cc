@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
 #include "gtest/gtest.h"
 #include "absl/random/random.h"
 #include "absl/strings/string_view.h"
@@ -92,8 +91,8 @@ class LcsListTest : public testing::Test {
     int len = lcs_.Run(left_int_, right_int_, &chunks);
     // and verify it.
     // Only "line 2" is common to both ==> one chunk and lcs is 1.
-    FILE_BASED_TEST_DRIVER_CHECK_EQ(1, len);
-    FILE_BASED_TEST_DRIVER_CHECK_EQ(1, chunks.size());
+    CHECK_EQ(1, len);
+    CHECK_EQ(1, chunks.size());
   }
 
  protected:
@@ -126,17 +125,17 @@ TEST(Lcs, RunWithString) {
   Lcs lcs;
   std::vector<Chunk> chunks;
   int len = lcs.Run(kLeft, kRight, &chunks);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(2, chunks.size());
+  CHECK_EQ(2, chunks.size());
   absl::string_view common_string1("this is the ");
   absl::string_view common_string2("t string");
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(common_string1.size() + common_string2.size(), len);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(common_string1,
+  CHECK_EQ(common_string1.size() + common_string2.size(), len);
+  CHECK_EQ(common_string1,
            absl::string_view(kLeft + chunks[0].left, chunks[0].length));
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(common_string1,
+  CHECK_EQ(common_string1,
            absl::string_view(kRight + chunks[0].right, chunks[0].length));
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(common_string2,
+  CHECK_EQ(common_string2,
            absl::string_view(kLeft + chunks[1].left, chunks[1].length));
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(common_string2,
+  CHECK_EQ(common_string2,
            absl::string_view(kRight + chunks[1].right, chunks[1].length));
 }
 
@@ -159,12 +158,12 @@ TEST(Lcs, RunWithVectorAsVector) {
   Lcs lcs;
   std::vector<Chunk> chunks;
   int len = lcs.Run(left, right, &chunks);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(2, chunks.size());
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(5, len);
+  CHECK_EQ(2, chunks.size());
+  CHECK_EQ(5, len);
   for (Chunk& chunk : chunks) {
-    FILE_BASED_TEST_DRIVER_CHECK_NE(0, chunk.length);
+    CHECK_NE(0, chunk.length);
     for (int i = chunk.left; i < chunk.length; i++) {
-      FILE_BASED_TEST_DRIVER_CHECK_EQ(right[chunk.right], left[chunk.left]);
+      CHECK_EQ(right[chunk.right], left[chunk.left]);
     }
   }
 }
@@ -177,12 +176,12 @@ TEST(Lcs, RunWithVectorAsPointer) {
   std::vector<Chunk> chunks;
   int len =
       lcs.Run(left.data(), left.size(), right.data(), right.size(), &chunks);
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(2, chunks.size());
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(5, len);
+  CHECK_EQ(2, chunks.size());
+  CHECK_EQ(5, len);
   for (Chunk& chunk : chunks) {
-    FILE_BASED_TEST_DRIVER_CHECK_NE(0, chunk.length);
+    CHECK_NE(0, chunk.length);
     for (int i = chunk.left; i < chunk.length; i++) {
-      FILE_BASED_TEST_DRIVER_CHECK_EQ(right[chunk.right], left[chunk.left]);
+      CHECK_EQ(right[chunk.right], left[chunk.left]);
     }
   }
 }

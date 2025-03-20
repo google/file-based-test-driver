@@ -152,7 +152,7 @@
     (void)_; /* error_expression is allowed to not use this variable */ \
     return (error_expression);                                          \
   }                                                                     \
-  lhs = std::move(statusor).ValueOrDie()
+  lhs = *std::move(statusor)
 
 // Internal helper for concatenating macro values.
 #define FILE_BASED_TEST_DRIVER_STATUS_MACROS_IMPL_CONCAT_INNER_(x, y) x##y

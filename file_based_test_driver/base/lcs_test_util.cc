@@ -55,8 +55,9 @@ std::string RandomString(absl::BitGenRef rand, int n, char min_char,
                          char max_char) {
   std::string output;
   while (n-- > 0)
-    output += static_cast<char>(absl::Uniform<uint8_t>(
-        rand, static_cast<uint8_t>(min_char), static_cast<uint8_t>(max_char) + 1));
+    output += static_cast<char>(
+        absl::Uniform<uint8_t>(rand, static_cast<uint8_t>(min_char),
+                               static_cast<uint8_t>(max_char) + 1));
   return output;
 }
 

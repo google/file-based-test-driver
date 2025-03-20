@@ -14,33 +14,7 @@
 # limitations under the License.
 #
 
-licenses(["notice"])  # Apache v2.0
-
-cc_library(
-    name = "base",
-    hdrs = [
-        "logging.h",
-    ],
-    tags = ["avoid_dep"],
-    visibility = ["//file_based_test_driver:__pkg__"],
-    deps = [
-        ":logging",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-    ],
-)
-
-cc_library(
-    name = "logging",
-    srcs = ["logging.cc"],
-    hdrs = ["logging.h"],
-    tags = ["avoid_dep"],
-    visibility = ["//file_based_test_driver:__pkg__"],
-    deps = [
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:log_severity",
-    ],
-)
+licenses(["notice"])
 
 cc_library(
     name = "source_location",
@@ -62,23 +36,21 @@ cc_library(
     name = "status",
     srcs = [
         "status_builder.cc",
-        "statusor.cc",
     ],
     hdrs = [
         "status.h",
         "status_builder.h",
         "status_macros.h",
-        "statusor.h",
-        "statusor_internals.h",
     ],
     visibility = ["//file_based_test_driver:__pkg__"],
     deps = [
-        ":logging",
         ":source_location",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:log_severity",
+        "@com_google_absl//absl/log:log_streamer",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/utility",
     ],
@@ -92,7 +64,6 @@ cc_library(
     ],
     visibility = ["//file_based_test_driver:__pkg__"],
     deps = [
-        ":logging",
         ":source_location",
         ":status",
         "@com_google_absl//absl/status",
@@ -108,6 +79,7 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -121,7 +93,7 @@ cc_library(
     ],
     visibility = ["//file_based_test_driver:__pkg__"],
     deps = [
-        ":logging",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/meta:type_traits",
     ],
 )
@@ -133,10 +105,12 @@ cc_test(
         "map_util_unittest.cc",
     ],
     deps = [
-        ":logging",
         ":map_util",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -145,9 +119,9 @@ cc_test(
     size = "small",
     srcs = ["no_destructor_test.cc"],
     deps = [
-        ":logging",
         ":map_util",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -170,28 +144,7 @@ cc_test(
         ":status_matchers_oss",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-alias(
-    name = "statusor",
-    actual = ":status",
-    visibility = ["//file_based_test_driver:__pkg__"],
-)
-
-cc_test(
-    name = "statusor_test",
-    size = "small",
-    srcs = ["statusor_test.cc"],
-    deps = [
-        ":source_location",
-        ":status",
-        ":status_matchers_oss",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_googletest//:gtest",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -206,7 +159,7 @@ cc_library(
     visibility = ["//file_based_test_driver:__pkg__"],
     deps = [
         ":status_matchers_oss",
-        "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/status:status_matchers",
     ],
 )
 
@@ -246,12 +199,13 @@ cc_library(
         "unified_diff_oss.h",
     ],
     deps = [
-        "//file_based_test_driver/base:logging",
         "//file_based_test_driver/base:map_util",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_map",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/random:bit_gen_ref",
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/status",
@@ -281,7 +235,6 @@ cc_test(
     deps = [
         ":lcs_test_util",
         ":unified_diff_oss",
-        "//file_based_test_driver/base",
         "@com_google_googletest//:gtest_main",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/strings",
@@ -362,6 +315,8 @@ cc_library(
         ":status",
         "@com_google_googletest//:gtest",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -371,10 +326,12 @@ cc_test(
     size = "small",
     srcs = ["status_matchers_oss_test.cc"],
     deps = [
+        ":status",
         ":status_matchers_oss",
-        ":statusor",
         "@com_google_googletest//:gtest_main",
         "@com_google_googletest//:gtest",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
@@ -414,8 +371,8 @@ cc_library(
     testonly = 1,
     hdrs = ["file_util_oss.h"],
     deps = [
-        ":logging",
         ":path",
+        "@com_google_absl//absl/log",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
@@ -430,6 +387,7 @@ cc_test(
         ":file_util_oss",
         ":status_matchers",
         "@com_google_googletest//:gtest_main",
+        "@com_google_absl//absl/log:check",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],

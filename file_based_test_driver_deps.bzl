@@ -45,10 +45,10 @@ def file_based_test_driver_deps():
         #
         http_archive(
             name = "com_google_absl",
-            # Commit from 2020-03-03
-            url = "https://github.com/abseil/abseil-cpp/archive/b19ba96766db08b1f32605cb4424a0e7ea0c7584.tar.gz",
-            sha256 = "c7ff8decfbda0add222d44bdc27b47527ca4e76929291311474efe7354f663d3",
-            strip_prefix = "abseil-cpp-b19ba96766db08b1f32605cb4424a0e7ea0c7584",
+            # Commit from 2024-05-31
+            url = "https://github.com/abseil/abseil-cpp/archive/d06b82773e2306a99a8971934fb5845d5c04a170.tar.gz",
+            sha256 = "fd4c78078d160951f2317229511340f3e92344213bc145939995eea9ff9b9e48",
+            strip_prefix = "abseil-cpp-d06b82773e2306a99a8971934fb5845d5c04a170",
         )
 
     # GoogleTest/GoogleMock framework. Used by most unit-tests.
@@ -74,19 +74,20 @@ def file_based_test_driver_deps():
         #
         http_archive(
             name = "com_google_googletest",
-            # Commit from 2020-02-21
-            url = "https://github.com/google/googletest/archive//6f5fd0d7199b9a19faa9f499ecc266e6ae0329e7.tar.gz",
-            sha256 = "51e6c4b4449aab8f31e69d0ff89565f49a1f3628a42e24f214e8b02b3526e3bc",
-            strip_prefix = "googletest-6f5fd0d7199b9a19faa9f499ecc266e6ae0329e7",
+            # Commit from 2022-11-15
+            url = "https://github.com/google/googletest/archive/0e6aac2571eb1753b8855d8d1f592df64d1a4828.tar.gz",
+            sha256 = "d1407f647bd6300b3434f7156fbf206100f8080b1661d8d56c57876c4173ddcd",
+            strip_prefix = "googletest-0e6aac2571eb1753b8855d8d1f592df64d1a4828",
         )
 
     # RE2 Regex Framework, mostly used in unit tests.
     if not native.existing_rule("com_googlesource_code_re2"):
+        # 2023-06-01
         http_archive(
             name = "com_googlesource_code_re2",
             urls = [
-                "https://github.com/google/re2/archive/d1394506654e0a19a92f3d8921e26f7c3f4de969.tar.gz",
+                "https://github.com/google/re2/archive/03da4fc0857c285e3a26782f6bc8931c4c950df4.tar.gz",
             ],
-            sha256 = "ac855fb93dfa6878f88bc1c399b9a2743fdfcb3dc24b94ea9a568a1c990b1212",
-            strip_prefix = "re2-d1394506654e0a19a92f3d8921e26f7c3f4de969",
+            sha256 = "ef516fb84824a597c4d5d0d6d330daedb18363b5a99eda87d027e6bdd9cba299",
+            strip_prefix = "re2-03da4fc0857c285e3a26782f6bc8931c4c950df4",
         )

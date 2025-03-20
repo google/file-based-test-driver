@@ -24,7 +24,7 @@
 #include "file_based_test_driver/test_case_mode.h"
 #include "file_based_test_driver/base/status_macros.h"
 
-using ::file_based_test_driver::testing::StatusIs;
+using ::absl_testing::StatusIs;
 using ::testing::_;
 using ::testing::ContainerEq;
 using ::testing::HasSubstr;

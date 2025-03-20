@@ -18,8 +18,12 @@
 
 #include <stdlib.h>
 
+#include <cstdint>
 #include <functional>
+#include <initializer_list>
+#include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -27,20 +31,34 @@
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
 #include "absl/functional/bind_front.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/log/log_entry.h"
+#include "absl/log/log_sink.h"
+#include "absl/log/log_sink_registry.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/substitute.h"
 #include "file_based_test_driver/base/file_util.h"
 #include "file_based_test_driver/base/status_matchers.h"
+#include "file_based_test_driver/run_test_case_result.h"
+#include "file_based_test_driver/test_case_mode.h"
 
 ABSL_DECLARE_FLAG(int32_t, file_based_test_driver_insert_leading_blank_lines);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_generate_test_output);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_individual_tests);
 ABSL_DECLARE_FLAG(bool, file_based_test_driver_log_ignored_test);
 
-using ::file_based_test_driver::testing::StatusIs;
+using ::absl_testing::StatusIs;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+using ::testing::SizeIs;
 
 // A replacement for VarSetter that works with new-style flags as well as
 // old-style flags.
@@ -85,6 +103,19 @@ namespace file_based_test_driver {
 using ::testing::ContainerEq;
 
 using TestdataUtilCallbackTest = ::testing::Test;
+
+static std::string StringifyResultDiff(const ResultDiff& result_diff) {
+  return absl::Substitute(
+      R"(FILE:$0:$4
+EXPECTED:
+$1
+ACTUAL:
+$2
+DIFF:
+$3)",
+      result_diff.file_path, result_diff.expected, result_diff.actual,
+      result_diff.unified_diff, result_diff.start_line_number);
+}
 
 // Extracts a single test case from testdata starting at '*start_line' using
 // GetNextTestCase(). Verifies that the results match 'expected_end_line',
@@ -138,8 +169,7 @@ TEST(TestdataUtilTest, Basic) {
       "Part 1\n"
       "--\n"
       "Part 2\n",
-      0, 3,
-      {"Part 1\n", "Part 2\n"} /* expected_parts */,
+      0, 3, {"Part 1\n", "Part 2\n"} /* expected_parts */,
       {} /* no expected comments */);
 
   VerifyGetNextTestdata(
@@ -148,8 +178,7 @@ TEST(TestdataUtilTest, Basic) {
       "Part 2\n"
       "--\n"
       "Part 3\n",
-      0, 5,
-      {"Part 1\n", "Part 2\n", "Part 3\n"} /* expected_parts */,
+      0, 5, {"Part 1\n", "Part 2\n", "Part 3\n"} /* expected_parts */,
       {} /* expect no comments */);
 }
 
@@ -269,21 +298,18 @@ TEST(TestdataUtilTest, SectionEscapes) {
       "==\n"
       "\\==";
 
-  VerifyGetNextTestdata(
-      testdata, 0, 9,
-      {"Line 1\n"
-       "-- Escaped\n",
-       "-- Escaped Again\n"
-       "--\n"
-       " --\n"
-       "\\\n"
-       "Line 2\n"} /* expected_parts */,
-      {} /* expect no comments */);
+  VerifyGetNextTestdata(testdata, 0, 9,
+                        {"Line 1\n"
+                         "-- Escaped\n",
+                         "-- Escaped Again\n"
+                         "--\n"
+                         " --\n"
+                         "\\\n"
+                         "Line 2\n"} /* expected_parts */,
+                        {} /* expect no comments */);
 
-  VerifyGetNextTestdata(
-      testdata, 9, 10,
-      {"==\n"} /* expected_parts */,
-      {} /* expect no comments */);
+  VerifyGetNextTestdata(testdata, 9, 10, {"==\n"} /* expected_parts */,
+                        {} /* expect no comments */);
 }
 
 // This test has an unnecessary escape at the start of the line that won't be
@@ -295,16 +321,15 @@ TEST(TestdataUtilTest, UnnecessarySectionEscapesAtStartOfLine) {
       " \\--\n"
       "\\Line 2\n"  // Unnecessary escaping at the start of the line.
       "==\n";
-  VerifyGetNextTestdata(
-      testdata, 0, 4,
-      {"Line 1\n"
-       " \\--\n"
-       "Line 2\n"} /* expected_parts*/,
-      {} /* expect no comments */,
-      // The reassembled output loses the unnessary escapes.
-      "Line 1\n"
-      " \\--\n"
-      "Line 2\n" /* manual_expected_reassembled */);
+  VerifyGetNextTestdata(testdata, 0, 4,
+                        {"Line 1\n"
+                         " \\--\n"
+                         "Line 2\n"} /* expected_parts*/,
+                        {} /* expect no comments */,
+                        // The reassembled output loses the unnessary escapes.
+                        "Line 1\n"
+                        " \\--\n"
+                        "Line 2\n" /* manual_expected_reassembled */);
 }
 
 TEST(TestdataUtilTest, BuildTestFileEntry) {
@@ -312,58 +337,100 @@ TEST(TestdataUtilTest, BuildTestFileEntry) {
                                                    {} /* comments */));
 }
 
+void TestBreakStringIntoAlternations(
+    absl::string_view input,
+    std::vector<std::pair<std::string, std::string>> expected) {
+  std::vector<std::pair<std::string, std::string>> actual;
+  std::vector<std::string> singleton_alternations;
+  internal::BreakStringIntoAlternations(input, /*config=*/{}, &actual,
+                                        singleton_alternations);
+
+  EXPECT_THAT(singleton_alternations, IsEmpty());
+  EXPECT_THAT(actual, ContainerEq(expected));
+
+  actual.clear();
+  expected.emplace_back(std::make_pair("", input));
+
+  internal::BreakStringIntoAlternations(
+      input, FileBasedTestDriverConfig().set_alternations_enabled(false),
+      &actual, singleton_alternations);
+  EXPECT_THAT(singleton_alternations, IsEmpty());
+  internal::BreakStringIntoAlternations(input, /*config=*/{}, &actual,
+                                        singleton_alternations);
+}
+
 TEST(TestdataUtilTest, BreakIntoAlternations) {
   std::vector<std::pair<std::string, std::string>> actual;
+  std::vector<std::string> singleton_alternations;
+  TestBreakStringIntoAlternations("aa{{y||x}}c",
+                                  {{"y", "aayc"}, {"", "aac"}, {"x", "aaxc"}});
 
-  internal::BreakStringIntoAlternations("aa{{y||x}}c", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"y", "aayc"}, {"", "aac"}, {"x", "aaxc"}}));
+  TestBreakStringIntoAlternations("aa{{{}|}}c", {{"{}", "aa{}c"}, {"", "aac"}});
 
-  internal::BreakStringIntoAlternations("aa{{}}c", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"", "aac"}}));
+  TestBreakStringIntoAlternations("{{a|b}}", {{"a", "a"}, {"b", "b"}});
 
-  internal::BreakStringIntoAlternations("{{a|b}}", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"a", "a"}, {"b", "b"}}));
+  TestBreakStringIntoAlternations("{{|a|b}}",
+                                  {{"", ""}, {"a", "a"}, {"b", "b"}});
 
-  internal::BreakStringIntoAlternations("{{|a|b}}", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"", ""}, {"a", "a"}, {"b", "b"}}));
+  TestBreakStringIntoAlternations(
+      "{{a|b}}{{c|d}}",
+      {{"a,c", "ac"}, {"a,d", "ad"}, {"b,c", "bc"}, {"b,d", "bd"}});
 
-  internal::BreakStringIntoAlternations("{{a|b}}{{c|d}}", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"a,c", "ac"}, {"a,d", "ad"}, {"b,c", "bc"}, {"b,d", "bd"}}));
+  // Unicode
+  TestBreakStringIntoAlternations(
+      "ɣ{{𝛼|𝛃}}{{c|𝛿}}ζ",
+      {{"𝛼,c", "ɣ𝛼cζ"}, {"𝛼,𝛿", "ɣ𝛼𝛿ζ"}, {"𝛃,c", "ɣ𝛃cζ"}, {"𝛃,𝛿", "ɣ𝛃𝛿ζ"}});
 
-  internal::BreakStringIntoAlternations("abc", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"", "abc"}}));
+  TestBreakStringIntoAlternations("abc", {{"", "abc"}});
 
-  internal::BreakStringIntoAlternations("{{a}bc|def{}}", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"a}bc", "a}bc"}, {"def{", "def{"}}));
+  TestBreakStringIntoAlternations("{{a}bc|def{}}",
+                                  {{"a}bc", "a}bc"}, {"def{", "def{"}});
 
-  internal::BreakStringIntoAlternations("{{a|b}}|", &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"a", "a|"}, {"b", "b|"}}));
+  TestBreakStringIntoAlternations("{{a|b}}|", {{"a", "a|"}, {"b", "b|"}});
+
+  // Escaped \ and | inside the alternation groups.
+  // This produces an empty alternation at both ends because of the
+  // leading and trailing |, and one in the middle between the ||.
+  TestBreakStringIntoAlternations(R"(AA{{|ab\|cd||\|x\||\\yy\\|}}BB)",
+                                  {{"", "AABB"},
+                                   {"ab|cd", "AAab|cdBB"},
+                                   {"", "AABB"},
+                                   {"|x|", "AA|x|BB"},
+                                   {R"(\\yy\\)", R"(AA\\yy\\BB)"},
+                                   {"", "AABB"}});
+
+  // Multi-line alternation specifiation.
+  TestBreakStringIntoAlternations("\n{{a|b}}\n{{c|d}}\n",
+                                  {{"a,c", "\na\nc\n"},
+                                   {"a,d", "\na\nd\n"},
+                                   {"b,c", "\nb\nc\n"},
+                                   {"b,d", "\nb\nd\n"}});
 
   // Invalid escapes present inside the alternation groups.
-  internal::BreakStringIntoAlternations("{{'a\\e'|'\\ea'|'\\'|'a\\aa'}}",
-                                        &actual);
-  EXPECT_THAT(actual,
-              ContainerEq(std::vector<std::pair<std::string, std::string>>{
-                  {"'a\\e'", "'a\\e'"},
-                  {"'\\ea'", "'\\ea'"},
-                  {"'\\'", "'\\'"},
-                  {"'a\\aa'", "'a\\aa'"}}));
+  TestBreakStringIntoAlternations(R"({{'a\e'|'\ea'|'\'|'a\aa'}})",
+                                  {{R"('a\e')", R"('a\e')"},
+                                   {R"('\ea')", R"('\ea')"},
+                                   {R"('\')", R"('\')"},
+                                   {R"('a\aa')", R"('a\aa')"}});
+}
+
+TEST(TestdataUtilTest, BracketNewlineBracketIsNotAnAlternation) {
+  // If input text contains {{...<newline>...}} it is ignored as an
+  // alternation. It's possible this should be an error, but may be
+  // necessary if the underlying language might contain double brackets.
+  std::vector<std::pair<std::string, std::string>> actual;
+  std::vector<std::string> singleton_alternations;
+  TestBreakStringIntoAlternations("{{a|\nb}}", {{"", "{{a|\nb}}"}});
+}
+
+TEST(TestdataUtilTest, CatchesSingletonAlternations) {
+  std::vector<std::pair<std::string, std::string>> actual;
+  std::vector<std::string> singleton_alternations;
+  internal::BreakStringIntoAlternations("aa{{b}}c{{}}d{{e}}", /*config=*/{},
+                                        &actual, singleton_alternations);
+
+  EXPECT_THAT(singleton_alternations,
+              ContainerEq(std::vector<std::string>{"{{b}}", "{{}}", "{{e}}"}));
 }
 
 TEST(TestdataUtilTest, ErrorForCommentInTestBody) {
@@ -387,7 +454,7 @@ TEST(TestdataUtilTest, ErrorForCommentInTestBody) {
 static void RunTestCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
+  LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   if (test_case == "line 1\n") {
     test_result->AddTestOutput("Line 2\n");
@@ -409,7 +476,7 @@ static void RunTestCallback(
     int sum = 0;
     for (int i = 1; i < numbers.size(); ++i) {
       int32_t v;
-      FILE_BASED_TEST_DRIVER_CHECK(absl::SimpleAtoi(numbers[i], &v));
+      CHECK(absl::SimpleAtoi(numbers[i], &v));
       sum += v;
     }
     test_result->AddTestOutput(absl::StrCat("sum ", sum, "\n"));
@@ -423,7 +490,7 @@ static void RunTestCallback(
 static void RunTestCallbackWithModes(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseWithModesResult* test_result) {
-  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
+  LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestCaseMode mode, TestCaseMode::Create("DEFAULT_MODE"));
   if (test_case == "line 1\n" || test_case == "line 1copy\n") {
@@ -450,7 +517,7 @@ static void RunTestCallbackWithModes(
     int sum = 0;
     for (int i = 1; i < numbers.size(); ++i) {
       int32_t v;
-      FILE_BASED_TEST_DRIVER_CHECK(absl::SimpleAtoi(numbers[i], &v));
+      CHECK(absl::SimpleAtoi(numbers[i], &v));
       sum += v;
     }
     FILE_BASED_TEST_DRIVER_EXPECT_OK(test_result->mutable_test_case_outputs()->RecordOutput(
@@ -561,6 +628,64 @@ sum 5
   EXPECT_EQ(21, num_callbacks);
 }
 
+TEST_F(TestdataUtilCallbackTest, SupportConfigDisableAlternations) {
+  const std::string test_file_contents =
+      R"(Line {{}}{{1}}
+--
+No match for Line {{}}{{1}}
+==
+)";
+
+  internal::RegisteredTempFile test_file(
+      "support_config_disable_alternations.test", test_file_contents);
+  int num_callbacks = 0;
+  EXPECT_TEST_PASSES(RunTestCasesFromFiles(
+      test_file.filename(), absl::bind_front(&RunTestCallback, &num_callbacks),
+      FileBasedTestDriverConfig().set_alternations_enabled(false)));
+  EXPECT_EQ(1, num_callbacks);
+}
+
+TEST_F(TestdataUtilCallbackTest,
+       TestFileRunnerSupportConfigDisableAlternations) {
+  const std::string test_file_contents =
+      R"(Line {{}}{{1}}
+--
+No match for Line {{}}{{1}}
+==
+)";
+  internal::RegisteredTempFile test_file(
+      "support_config_disable_alternations_via_runner.test",
+      test_file_contents);
+  int num_callbacks = 0;
+
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestFile file_based_test_file,
+                       TestFile::MakeFromFilepath(test_file.filename()));
+  std::unique_ptr<TestFileRunner> runner = file_based_test_file.MakeRunner(
+      FileBasedTestDriverConfig().set_alternations_enabled(false));
+
+  for (const TestCaseHandle& test_case : file_based_test_file.Tests()) {
+    EXPECT_TEST_PASSES(runner->RunTestCase(
+        test_case, absl::bind_front(&RunTestCallback, &num_callbacks)));
+  }
+  EXPECT_EQ(1, num_callbacks);
+}
+
+TEST_F(TestdataUtilCallbackTest,
+       RunTestCasesFromFilesCatchesSingletonAlternations) {
+  const std::string test_file_contents =
+      R"(line 1 0123{a|b|c}{{singleton_alt1}}def{{}}  x{{singleton_alt2}}y
+--
+INVALID_ARGUMENT: Expected at least 2 options in every alternation, but found only one in some. Did you forget to include the empty option? {{singleton_alt1}}, {{}}, {{singleton_alt2}}
+)";
+  internal::RegisteredTempFile test_file("testdata_util_test.test",
+                                         test_file_contents);
+  int num_callbacks = 0;
+  EXPECT_TEST_PASSES(RunTestCasesFromFiles(
+      test_file.filename(),
+      absl::bind_front(&RunTestCallback, &num_callbacks)));
+  EXPECT_EQ(0, num_callbacks);
+}
+
 TEST_F(TestdataUtilCallbackTest, RunTestCasesWithModesFromFiles) {
   const std::string test_file_contents =
       R"(line 1
@@ -643,6 +768,23 @@ sum 5
   EXPECT_EQ(21, num_callbacks);
 }
 
+TEST_F(TestdataUtilCallbackTest,
+       RunTestCasesWithModesFromFilesCatchesSingletonAlternations) {
+  const std::string test_file_contents =
+      R"(# Case with singleton alternations and multiple outputs per alternation.
+line 1{{1|}}{{2}}abc{d|e|f}{{}}pqr{{3}}
+--
+INVALID_ARGUMENT: Expected at least 2 options in every alternation, but found only one in some. Did you forget to include the empty option? {{2}}, {{}}, {{3}}
+)";
+  internal::RegisteredTempFile test_file("testdata_util_test.test",
+                                         test_file_contents);
+  int num_callbacks = 0;
+  EXPECT_TEST_PASSES(RunTestCasesWithModesFromFiles(
+      test_file.filename(),
+      absl::bind_front(&RunTestCallbackWithModes, &num_callbacks)));
+  EXPECT_EQ(0, num_callbacks);
+}
+
 TEST_F(TestdataUtilCallbackTest, AddBlankLines) {
   const std::string test_file_contents1 =
       R"(line 1
@@ -702,7 +844,7 @@ Line 6
 static void RunRegexTestCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
+  LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   test_result->AddTestOutput("Result_rep 5\n");
 }
@@ -747,9 +889,19 @@ Result_rep 2
 static void EchoCallback(
     int* num_callbacks, absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
-  FILE_BASED_TEST_DRIVER_LOG(INFO) << "Running test case " << test_case;
+  LOG(INFO) << "Running test case " << test_case;
   (*num_callbacks)++;
   test_result->AddTestOutput(absl::StrCat("Test got input: ", test_case));
+}
+
+static void EchoCallbackWithModes(
+    int* num_callbacks, absl::string_view test_case,
+    file_based_test_driver::RunTestCaseWithModesResult* test_result) {
+  LOG(INFO) << "Running test case " << test_case;
+  (*num_callbacks)++;
+  FILE_BASED_TEST_DRIVER_ASSERT_OK(test_result->mutable_test_case_outputs()->RecordOutput(
+      *TestCaseMode::Create("base"), "",
+      absl::StrCat("Test got input: ", test_case)));
 }
 
 // Test handling of empty tests.
@@ -808,6 +960,65 @@ Test got input: input2
   EXPECT_EQ(1, num_callbacks);
 }
 
+TEST_F(TestdataUtilCallbackTest, CaptureDiffOutputs) {
+  // All tests passes for this test case.
+  const std::string test_file_contents1 =
+      R"(
+==
+==
+# Comment
+==
+input1
+--
+Test got input: input1
+==
+# Comment but no input
+--
+Test got input: 
+==
+--
+Test got input: 
+==
+# Comment but no input and no output
+==
+input2
+--
+Test got input: input2
+==
+)";
+
+  const std::string test_file_contents2 =
+      R"(
+==
+input1
+--
+Test got input: input2
+==
+input3
+--
+Test got input: input4
+==
+)";
+  internal::RegisteredTempFile test_file1("testdata_util_test1.test",
+                                          test_file_contents1);
+  internal::RegisteredTempFile test_file2("testdata_util_test2.test",
+                                          test_file_contents2);
+  std::vector<std::string> diffs;
+  auto on_diff_found =
+      [&diffs](const file_based_test_driver::ResultDiff& result_diff) {
+        diffs.push_back(StringifyResultDiff(result_diff));
+      };
+
+  int num_callbacks = 0;
+  EXPECT_TEST_PASSES(RunTestCasesFromFiles(
+      test_file1.filename(), absl::bind_front(&EchoCallback, &num_callbacks),
+      file_based_test_driver::FileBasedTestDriverConfig()
+          .set_on_result_diff_found_callback(on_diff_found)));
+  // Four tests have actually run.
+  EXPECT_EQ(4, num_callbacks);
+  EXPECT_THAT(diffs, IsEmpty());
+}
+
 static void RunLogIgnoredTestFlagCallback(
     absl::string_view test_case,
     file_based_test_driver::RunTestCaseResult* test_result) {
@@ -853,6 +1064,318 @@ run_this
                                            &RunLogIgnoredTestFlagCallback));
   EXPECT_TEST_PASSES(RunTestCasesWithModesFromFiles(
       test_file.filename(), &RunLogIgnoredTestFlagCallbackWithModes));
+}
+
+using TestFileTest = ::testing::Test;
+
+TEST_F(TestFileTest, MakeFromFilepathWithBadFileReturnsFileNotFound) {
+  EXPECT_THAT(TestFile::MakeFromFilepath("bad_file.text"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+static std::string TestName() {
+  // Useful for generating a unique name for an input file.
+  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+}
+
+TEST_F(TestFileTest, EmptyFileResultsInOneTest) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"), "");
+  absl::StatusOr<TestFile> test_file =
+      TestFile::MakeFromFilepath(file.filename());
+  FILE_BASED_TEST_DRIVER_ASSERT_OK(test_file.status());
+  EXPECT_THAT(test_file->Tests(), SizeIs(1));
+}
+
+TEST_F(TestFileTest, TestsRepresentsInputFile) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+==
+second test
+--
+output part 1
+--
+output part 2
+==
+{{alt1|alt2}}
+)");
+  absl::StatusOr<TestFile> test_file =
+      TestFile::MakeFromFilepath(file.filename());
+  FILE_BASED_TEST_DRIVER_ASSERT_OK(test_file.status());
+  std::vector<TestCaseHandle> tests = test_file->Tests();
+  EXPECT_THAT(tests, SizeIs(3));
+}
+
+TEST_F(TestFileTest, TestFileRunnerInvokedOncePerAlternation) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+--
+Test got input: first test
+==
+with '{{alt1|alt2|}}'
+--
+ALTERNATION GROUP: alt1
+--
+Test got input: with 'alt1'
+--
+ALTERNATION GROUP: alt2
+--
+Test got input: with 'alt2'
+--
+ALTERNATION GROUP: <empty>
+--
+Test got input: with ''
+)");
+  absl::StatusOr<TestFile> test_file =
+      TestFile::MakeFromFilepath(file.filename());
+  std::unique_ptr<TestFileRunner> runner = test_file->MakeRunner();
+  int num_callbacks = 0;
+  for (TestCaseHandle test : test_file->Tests()) {
+    runner->RunTestCase(test, absl::bind_front(&EchoCallback, &num_callbacks));
+  }
+  EXPECT_EQ(num_callbacks, 4);
+}
+
+class FileBasedTestDriverTestHelper {
+ public:
+  static ShardingEnvironment MakeUnshardedEnvironment() {
+    return ShardingEnvironment();
+  }
+
+  static ShardingEnvironment MakeShardingEnvironment(int this_shard,
+                                                     int total_shards) {
+    ShardingEnvironment env;
+    env.is_sharded_ = true;
+    env.this_shard_ = this_shard;
+    env.total_shards_ = total_shards;
+    return env;
+  }
+
+  static int TestIndex(const TestCaseHandle& handle) { return handle.index_; }
+
+  static bool GetSkipBySharding(const TestCaseHandle& handle) {
+    return handle.skip_by_sharding_;
+  }
+};
+
+TEST_F(TestFileTest, TestFileRunnerInvokedOncePerAlternationWithModes) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+--
+Test got input: first test
+==
+with '{{alt1|alt2|}}'
+--
+<{EMPTY}>
+Test got input: with ''
+--
+<{alt1}>
+Test got input: with 'alt1'
+--
+<{alt2}>
+Test got input: with 'alt2'
+)");
+  absl::StatusOr<TestFile> test_file =
+      TestFile::MakeFromFilepath(file.filename());
+  std::unique_ptr<TestFileRunner> runner = test_file->MakeRunner();
+  int num_callbacks = 0;
+  for (TestCaseHandle test : test_file->Tests()) {
+    runner->RunTestCaseWithModes(
+        test, absl::bind_front(&EchoCallbackWithModes, &num_callbacks));
+  }
+  EXPECT_EQ(num_callbacks, 4);
+}
+
+TEST_F(TestFileTest, ShardedTestsWithAlternationsIsUnimplemented) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+==
+second test
+--
+output part 1
+--
+output part 2
+==
+{{alt1|alt2}}
+)");
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestFile test_file,
+                       TestFile::MakeFromFilepath(file.filename()));
+  EXPECT_TRUE(test_file.ContainsAlternations());
+
+  EXPECT_THAT(test_file.ShardedTests(
+                  [](const TestCaseInput&) { return false; },
+                  FileBasedTestDriverTestHelper::MakeUnshardedEnvironment()),
+              StatusIs(absl::StatusCode::kUnimplemented));
+}
+
+TEST_F(TestFileTest, ShardedTestsRepresentsInputFileWhenUnsharded) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+==
+second test
+--
+output part 1
+--
+output part 2
+==
+third test
+)");
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestFile test_file,
+                       TestFile::MakeFromFilepath(file.filename()));
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
+      std::vector<TestCaseHandle> tests,
+      test_file.ShardedTests(
+          [](const TestCaseInput&) { return false; },
+          FileBasedTestDriverTestHelper::MakeUnshardedEnvironment()));
+
+  EXPECT_THAT(tests, SizeIs(3));
+}
+
+TEST_F(TestFileTest, ShardedTestsRepresentsInputFileWhenSharded) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+==
+second test
+--
+output part 1
+--
+output part 2
+==
+third test
+)");
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestFile test_file,
+                       TestFile::MakeFromFilepath(file.filename()));
+
+  const bool run = false;
+  const bool skip = true;
+
+  // clang-format off
+  const std::vector<int> expected_test_indexes = {
+    0, 0, 0, 0,
+    1, 1, 1, 1,
+    2, 2, 2, 2
+  };
+
+  const std::vector<std::vector<bool>> expected_skip_by_sharding = {
+      // Shard 1 / 4
+      { run,  skip, skip, skip,
+        skip, skip, skip, skip,
+        skip, skip, skip, skip},
+      // Shard 2 / 4 
+      { skip, skip, skip, skip,
+        skip, run,  skip, skip,
+        skip, skip, skip, skip},
+      // Shard 3 / 4
+      { skip, skip, skip, skip,
+        skip, skip, skip, skip,
+        skip, skip, run,  skip},
+      // Shard 4 / 4 - notice no tests are run on this shard
+      { skip, skip, skip, skip,
+        skip, skip, skip, skip,
+        skip, skip, skip, skip}};
+  // clang-format on
+
+  for (int i = 0; i < 4; ++i) {
+    FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
+        std::vector<TestCaseHandle> tests,
+        test_file.ShardedTests(
+            [](const TestCaseInput&) { return false; },
+            FileBasedTestDriverTestHelper::MakeShardingEnvironment(i, 4)));
+
+    // We expect each test_case to exist in each test shard, then googletest
+    // will round robin these. So, here, a total of 9 (3 tests, 3 shards).
+    ASSERT_THAT(tests, SizeIs(4 * 3));
+
+    for (int t = 0; t < tests.size(); ++t) {
+      EXPECT_THAT(FileBasedTestDriverTestHelper::TestIndex(tests[t]),
+                  expected_test_indexes[t])
+          << "shard = " << i << " t=" << t;
+    }
+    for (int t = 0; t < tests.size(); ++t) {
+      EXPECT_THAT(FileBasedTestDriverTestHelper::GetSkipBySharding(tests[t]),
+                  expected_skip_by_sharding[i][t])
+          << "shard = " << i << " t=" << t;
+    }
+  }
+}
+
+TEST_F(TestFileTest,
+       ShardedTestsRepresentsInputFileWhenShardedAndRespectSideEffects) {
+  internal::RegisteredTempFile file(absl::StrCat(TestName(), ".test"),
+                                    R"(
+first test
+==
+has side effects
+--
+output part 1
+--
+output part 2
+==
+third test
+)");
+  FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(TestFile test_file,
+                       TestFile::MakeFromFilepath(file.filename()));
+
+  const bool run = false;
+  const bool skip = true;
+
+  // On this test, we mark the second test ("has side effects") as
+  // having side effects, meaning it will be run on all shards.
+
+  // clang-format off
+  const std::vector<int> expected_test_indexes = {
+    0, 0, 0, 0,
+    1, 1, 1, 1,
+    2, 2, 2, 2
+  };
+  const std::vector<std::vector<bool>> expected_skip_by_sharding = {
+      // Shard 1 / 4
+      { run,  skip, skip, skip,
+        run,  skip, skip, skip,
+        skip, skip, skip, skip},
+      // Shard 2 / 4 
+      { skip, skip, skip, skip,
+        skip, run,  skip, skip,
+        skip, skip, skip, skip},
+      // Shard 3 / 4
+      { skip, skip, skip, skip,
+        skip, skip, run,  skip,
+        skip, skip, run,  skip},
+      // Shard 4 / 4 - notice only the 'side effect' test runs on this shard
+      { skip, skip, skip, skip,
+        skip, skip, skip, run,
+        skip, skip, skip, skip}};
+  // clang-format on
+
+  for (int i = 0; i < 4; ++i) {
+    FILE_BASED_TEST_DRIVER_ASSERT_OK_AND_ASSIGN(
+        std::vector<TestCaseHandle> tests,
+        test_file.ShardedTests(
+            [](const TestCaseInput& input) {
+              return input.text() == "has side effects\n";
+            },
+            FileBasedTestDriverTestHelper::MakeShardingEnvironment(i, 4)));
+
+    // We expect each test_case to exist in each test shard, then googletest
+    // will round robin these. So, here, a total of 12 (3 tests, 4 shards).
+    ASSERT_THAT(tests, SizeIs(3 * 4));
+
+    for (int t = 0; t < tests.size(); ++t) {
+      EXPECT_THAT(FileBasedTestDriverTestHelper::TestIndex(tests[t]),
+                  expected_test_indexes[t])
+          << "shard = " << i << " t=" << t;
+    }
+    for (int t = 0; t < tests.size(); ++t) {
+      EXPECT_THAT(FileBasedTestDriverTestHelper::GetSkipBySharding(tests[t]),
+                  expected_skip_by_sharding[i][t])
+          << "shard = " << i << " t=" << t;
+    }
+  }
 }
 
 }  // namespace file_based_test_driver

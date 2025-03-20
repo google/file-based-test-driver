@@ -26,7 +26,6 @@
 #include <iterator>
 #include <vector>
 
-#include "file_based_test_driver/base/logging.h"
 #include "file_based_test_driver/base/lcs.h"
 #include "file_based_test_driver/base/lcs_util.h"
 

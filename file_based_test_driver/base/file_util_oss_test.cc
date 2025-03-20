@@ -20,12 +20,14 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "file_based_test_driver/base/status_matchers.h"
 
 namespace file_based_test_driver::internal {
 
-using ::file_based_test_driver::testing::StatusIs;
+using absl_testing::StatusIs;
 
 TEST(FileUtilTest, NullFreeString) {
   std::string str;
@@ -53,8 +55,9 @@ TEST(FileUtilTest, MatchFailsOnWrongTypeOfFile) {
   EXPECT_TRUE(filenames.empty());
 
   // Directory exists, but is not a regular file.
-  EXPECT_THAT(Match(getenv("TEST_SRCDIR"), &filenames),
-              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(
+      Match(absl::NullSafeStringView(getenv("TEST_SRCDIR")), &filenames),
+      StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_TRUE(filenames.empty());
 }
 
@@ -78,8 +81,9 @@ TEST(FileUtilTest, GetContentsFailsOnMissingFile) {
 TEST(FileUtilTest, GetContentsFailsOnWrongTypeOfFile) {
   // Directory exists, but is not a regular file.
   std::string contents;
-  EXPECT_THAT(GetContents(getenv("TEST_SRCDIR"), &contents),
-              StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_THAT(
+      GetContents(absl::NullSafeStringView(getenv("TEST_SRCDIR")), &contents),
+      StatusIs(absl::StatusCode::kFailedPrecondition));
   EXPECT_TRUE(contents.empty());
 }
 
@@ -172,7 +176,7 @@ TEST(FileUtilTest, RecursivelyCreateDirFailsOnReadOnlyDir) {
   const std::string read_only_dir =
       absl::StrCat(TestTmpDir(), "/RecursivelyCreateDirReadOnlyDir");
   // Create a read-only parent
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(0, mkdir(read_only_dir.c_str(),
+  CHECK_EQ(0, mkdir(read_only_dir.c_str(),
                     /*mode=*/S_IRUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IROTH |
                         S_IXOTH));
   const std::string filespec =
@@ -183,7 +187,7 @@ TEST(FileUtilTest, RecursivelyCreateDirFailsOnReadOnlyDir) {
   EXPECT_FALSE(DirectoryExists(filespec));
   // Make sure to mark the directory writable so the build system can
   // clean it up afterward.
-  FILE_BASED_TEST_DRIVER_CHECK_EQ(0,
+  CHECK_EQ(0,
            chmod(read_only_dir.c_str(), /*mode=*/S_IRWXU | S_IRWXG | S_IRWXO));
 }
 

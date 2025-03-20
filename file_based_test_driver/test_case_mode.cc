@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-#include "file_based_test_driver/base/statusor.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -33,7 +33,7 @@
 namespace file_based_test_driver {
 
 // static
-file_based_test_driver_base::StatusOr<TestCaseMode> TestCaseMode::Create(
+absl::StatusOr<TestCaseMode> TestCaseMode::Create(
     std::vector<std::string> mode_parts) {
   for (const std::string& part : mode_parts) {
     if (part.empty()) {
@@ -57,7 +57,7 @@ file_based_test_driver_base::StatusOr<TestCaseMode> TestCaseMode::Create(
 }
 
 // static
-file_based_test_driver_base::StatusOr<TestCaseMode> TestCaseMode::Create(
+absl::StatusOr<TestCaseMode> TestCaseMode::Create(
     absl::string_view description) {
   std::vector<std::string> mode_parts =
       absl::StrSplit(std::string(description), ' ');
@@ -69,7 +69,7 @@ std::string TestCaseMode::ToString() const {
 }
 
 // static
-file_based_test_driver_base::StatusOr<std::vector<TestCaseMode>> TestCaseMode::ParseModes(
+absl::StatusOr<std::vector<TestCaseMode>> TestCaseMode::ParseModes(
     absl::string_view modes_string) {
   std::vector<TestCaseMode> test_modes;
 

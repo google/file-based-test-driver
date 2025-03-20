@@ -20,7 +20,6 @@
 #include <iterator>
 #include <vector>
 
-#include <cstdint>
 #include "file_based_test_driver/base/lcs.h"
 
 namespace file_based_test_driver_base {
